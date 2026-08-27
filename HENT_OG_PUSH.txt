@@ -1,0 +1,13 @@
+Stay — samlet kildekode
+
+1. Udpak stay-app.zip på PC.
+2. I mappen: npm install && npm run dev
+3. Push til GitHub:
+   git init
+   git add .
+   git commit -m "Stay MVP"
+   git branch -M main
+   git remote add origin https://github.com/teamstayapp/stay-app.git
+   git push -u origin main
+
+Ingen .env eller nøgler i denne pakke. Kopiér .env.example til .env.local selv.
