@@ -1,0 +1,26 @@
+{
+  "name": "Stay",
+  "short_name": "Stay",
+  "description": "18+ edge-app. Kun voksne. Egen side, ikke App Store.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#100c0b",
+  "theme_color": "#100c0b",
+  "lang": "da",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

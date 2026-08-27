@@ -1,0 +1,12 @@
+:root {
+  font-family: Georgia, "Times New Roman", serif;
+  color: #f4ebe4;
+  background: #100c0b;
+}
+
+html, body, #root {
+  margin: 0;
+  min-height: 100%;
+}
+
+button, input { font-family: inherit; }
