@@ -1,6 +1,8 @@
 # Stay
 
-Se [STATUS.md](STATUS.md) for fremdrift, huller og ønsker.
+Se [STATUS.md](STATUS.md) for fremdrift og mangler, [CHANGELOG.md](CHANGELOG.md)
+for leverede ændringer, [ROADMAP.md](ROADMAP.md) for den besluttede rækkefølge
+og [IDEER.md](IDEER.md) for idéer til senere.
 
 18+ solo edge-PWA. Egen side — ikke App Store.
 
@@ -39,23 +41,28 @@ og nulstilling af adgangskode.
 Se [PROMPT_ADMIN.md](PROMPT_ADMIN.md) for scenevalg, adminredigering af prompts
 og modelvalg.
 
-## Konto (MVP)
+Se [FORBRUG_OG_GRAENSER.md](FORBRUG_OG_GRAENSER.md) for AI-forbrug,
+abonnementsgrænser og manuelle tilkøb.
 
-Brugere ligger i `localStorage`. Senere: rigtig backend + hashed kode.
+## Konto
+
+Login bruger Firebase Authentication. Chatnavn og centrale scene-prompts ligger
+i Firestore. Private eller lokalt gemte chats håndteres på brugerens enhed.
 
 - Opret / log ind efter 18+
-- Demo-admin: `admin@stay.local` / `admin`
+- Adminmail styres med `VITE_ADMIN_EMAIL`
 - Admin: kunder, plan, pause, opsig, churn
 
 ## Priser (husk)
 
-| Plan | kr/md | Chat | Billeder | NSFW | Pakker |
-|---|---|---|---|---|---|
-| Prøv | 0 | 20 msg/dag | 2 | nej | kerne |
-| Solo | 79 | åben | 25 | ja | kerne |
-| Plus | 149 | åben | 80 | ja | alle |
+| Plan | kr/md | Chat | Billeder | Analyser | NSFW | Pakker |
+|---|---:|---:|---:|---:|---|---|
+| Prøv | 0 | 50/dag | 2/md | 5/md | nej | kerne |
+| Solo | 79 | 500/dag | 25/md | 100/md | ja | kerne |
+| Plus | 149 | 1.000/dag | 80/md | 300/md | ja | alle |
 
-Tillæg: +50 billeder 49 kr · +150 billeder 119 kr · alle pakker 39 kr (på Solo).
+Tillæg: +50 billeder 49 kr · +150 billeder 119 kr · +50 analyser 19 kr ·
++200 analyser 59 kr · alle pakker 39 kr (på Solo).
 
 Avance sidder i billedloftet. Venice-chat er øre. Kost pr. billede ca. 0,05–0,10 USD.
 
@@ -64,7 +71,9 @@ Betaling: egen side, voksen-venlig processor / MobilePay — ikke App Store IAP.
 ## AI
 
 - Chat: Venice `venice-uncensored-role-play` (eller `venice-uncensored-1-2`)
-- Figurer: test Hunyuan/Flux/Seedream hos Venice; ellers spicy image-API
+- Figurer: separat privat Venice-billedmodel valgt af admin pr. scene
+- Brugerbilleder: privat vision-analyse gennem Cloudflare Workeren
+- Opgaver: egen adminprompt pr. scene og den aktuelle chat som kontekst
 - Nøgle kun på server
 
 ## Regler

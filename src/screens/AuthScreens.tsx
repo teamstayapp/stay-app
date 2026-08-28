@@ -13,6 +13,20 @@ import {
 import { firebaseReady } from '../engine/firebase'
 import { PLANS, type PlanId } from '../engine/plans'
 import { AI_MODELS, DEFAULT_SCENES, IMAGE_MODELS, observeScenes, publishScenes } from '../engine/scenes'
+import {
+  DEFAULT_USAGE_CONFIG,
+  approvePurchase,
+  currentUsagePeriod,
+  observePurchaseRequests,
+  observeUsageConfig,
+  observeUsageDashboard,
+  publishUsageConfig,
+  rejectPurchase,
+  setUserEntitlementPlan,
+  type PurchaseRequest,
+  type UsageConfig,
+  type UsageDashboardRow,
+} from '../engine/usage'
 
 export function LoginScreen({
   onIn,
@@ -166,24 +180,55 @@ export function LoginScreen({
 }
 
 export function AdminScreen({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<'kunder' | 'tal' | 'prompts' | 'indhold'>('kunder')
+  const [tab, setTab] = useState<'kunder' | 'tal' | 'forbrug' | 'prompts' | 'indhold'>('kunder')
   const [, setTick] = useState(0)
   const [scenes, setScenes] = useState(DEFAULT_SCENES)
   const [selectedSceneId, setSelectedSceneId] = useState(DEFAULT_SCENES[0]?.id ?? '')
   const [sceneNotice, setSceneNotice] = useState('')
   const [sceneSaving, setSceneSaving] = useState(false)
+  const [usageConfig, setUsageConfig] = useState<UsageConfig>(DEFAULT_USAGE_CONFIG)
+  const [usageRows, setUsageRows] = useState<UsageDashboardRow[]>([])
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([])
+  const [usageNotice, setUsageNotice] = useState('')
+  const [usageSaving, setUsageSaving] = useState(false)
   const list = loadAccounts()
   const active = list.filter((a) => a.status === 'active')
   const gone = list.filter((a) => a.status === 'cancelled' || a.status === 'churned')
   const mrr = active.reduce((sum, a) => sum + (PLANS.find((p) => p.id === a.plan)?.dkkMonth ?? 0), 0)
 
   useEffect(() => observeScenes(setScenes), [])
+  useEffect(() => observeUsageConfig(setUsageConfig), [])
+  useEffect(() => observeUsageDashboard(setUsageRows), [])
+  useEffect(() => observePurchaseRequests(setPurchaseRequests), [])
 
   function refresh() {
     setTick((n) => n + 1)
   }
 
   const selectedScene = scenes.find((scene) => scene.id === selectedSceneId)
+  const currentUsageRows = usageRows.filter((row) => row.period === currentUsagePeriod())
+  const modelTotals = new Map<string, { calls: number; inputTokens: number; outputTokens: number }>()
+  for (const row of currentUsageRows) {
+    for (const [model, stats] of Object.entries(row.models)) {
+      const total = modelTotals.get(model) || { calls: 0, inputTokens: 0, outputTokens: 0 }
+      total.calls += stats.calls
+      total.inputTokens += stats.inputTokens
+      total.outputTokens += stats.outputTokens
+      modelTotals.set(model, total)
+    }
+  }
+  const pendingPurchases = purchaseRequests.filter((item) => item.status === 'pending')
+  const usagePlans: Array<{
+    id: PlanId
+    title: string
+    chat: keyof UsageConfig
+    generation: keyof UsageConfig
+    analysis: keyof UsageConfig
+  }> = [
+    { id: 'free', title: 'Prøv', chat: 'freeChatDaily', generation: 'freeImageGenerationsMonthly', analysis: 'freeImageAnalysesMonthly' },
+    { id: 'solo', title: 'Solo', chat: 'soloChatDaily', generation: 'soloImageGenerationsMonthly', analysis: 'soloImageAnalysesMonthly' },
+    { id: 'plus', title: 'Plus', chat: 'plusChatDaily', generation: 'plusImageGenerationsMonthly', analysis: 'plusImageAnalysesMonthly' },
+  ]
 
   function updateSelected(patch: Partial<NonNullable<typeof selectedScene>>) {
     setSceneNotice('')
@@ -203,6 +248,9 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
         </button>
         <button className={tab === 'tal' ? 'chip on' : 'chip'} onClick={() => setTab('tal')}>
           Tal
+        </button>
+        <button className={tab === 'forbrug' ? 'chip on' : 'chip'} onClick={() => setTab('forbrug')}>
+          AI-forbrug
         </button>
         <button className={tab === 'prompts' ? 'chip on' : 'chip'} onClick={() => setTab('prompts')}>
           Prompts
@@ -271,6 +319,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                         onClick={() => {
                           const plan = PLANS.find((x) => x.id === p)!
                           setAccountPlan(a.id, p, plan.images)
+                          void setUserEntitlementPlan(a.id, p).catch(() => undefined)
                           refresh()
                         }}
                       >
@@ -311,6 +360,125 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
           <p className="hint">
             Mock MRR tæller kun aktive planer til listepris. Gebyr og Venice-kost er ikke trukket fra.
           </p>
+        </section>
+      )}
+
+      {tab === 'forbrug' && (
+        <section className="usage-admin">
+          <div className="sheet">
+            <p className="kicker">Centrale grænser</p>
+            <h2>Forbrug pr. abonnement</h2>
+            <p className="hint">Chat nulstilles dagligt. Billedgenerering og billedanalyse nulstilles månedligt.</p>
+            <div className="limit-grid">
+              {usagePlans.map((plan) => (
+                <fieldset key={plan.id}>
+                  <legend>{plan.title}</legend>
+                  <label className="field">
+                    Chat pr. dag
+                    <input
+                      type="number"
+                      min="0"
+                      value={usageConfig[plan.chat]}
+                      onChange={(e) => setUsageConfig({ ...usageConfig, [plan.chat]: Math.max(0, Number(e.target.value)) })}
+                    />
+                  </label>
+                  <label className="field">
+                    Billeder pr. måned
+                    <input
+                      type="number"
+                      min="0"
+                      value={usageConfig[plan.generation]}
+                      onChange={(e) => setUsageConfig({ ...usageConfig, [plan.generation]: Math.max(0, Number(e.target.value)) })}
+                    />
+                  </label>
+                  <label className="field">
+                    Billedanalyser pr. måned
+                    <input
+                      type="number"
+                      min="0"
+                      value={usageConfig[plan.analysis]}
+                      onChange={(e) => setUsageConfig({ ...usageConfig, [plan.analysis]: Math.max(0, Number(e.target.value)) })}
+                    />
+                  </label>
+                </fieldset>
+              ))}
+            </div>
+            <button
+              className="primary"
+              disabled={usageSaving}
+              onClick={async () => {
+                setUsageSaving(true)
+                setUsageNotice('')
+                try {
+                  await publishUsageConfig(usageConfig)
+                  setUsageNotice('Forbrugsgrænserne er udgivet og gælder straks for alle brugere.')
+                } catch (error) {
+                  setUsageNotice(error instanceof Error ? error.message : 'Grænserne kunne ikke gemmes.')
+                } finally {
+                  setUsageSaving(false)
+                }
+              }}
+            >
+              {usageSaving ? 'Gemmer…' : 'Gem grænser'}
+            </button>
+            {usageNotice && <p className="form-message success">{usageNotice}</p>}
+          </div>
+
+          <div className="sheet">
+            <p className="kicker">Manuel betaling indtil webhook</p>
+            <h2>Afventende køb ({pendingPurchases.length})</h2>
+            {pendingPurchases.length === 0 && <p className="hint">Ingen køb afventer.</p>}
+            {pendingPurchases.map((request) => (
+              <div className="purchase-row" key={request.id}>
+                <div>
+                  <strong>{request.email || request.uid}</strong>
+                  <p>{request.title} · {request.priceDkk} kr</p>
+                </div>
+                <div className="row">
+                  <button
+                    className="chip on"
+                    onClick={async () => {
+                      try {
+                        await approvePurchase(request)
+                        setUsageNotice(`${request.title} er godkendt for ${request.email}.`)
+                      } catch (error) {
+                        setUsageNotice(error instanceof Error ? error.message : 'Købet kunne ikke godkendes.')
+                      }
+                    }}
+                  >
+                    Godkend
+                  </button>
+                  <button className="ghost" onClick={() => void rejectPurchase(request.id)}>Afvis</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="sheet">
+            <p className="kicker">{currentUsagePeriod()}</p>
+            <h2>Samlet AI-forbrug</h2>
+            <div className="stats compact">
+              <div className="stat"><b>{currentUsageRows.reduce((sum, row) => sum + row.chatMonth, 0)}</b>chatkald</div>
+              <div className="stat"><b>{currentUsageRows.reduce((sum, row) => sum + row.imageGenerations, 0)}</b>billeder</div>
+              <div className="stat"><b>{currentUsageRows.reduce((sum, row) => sum + row.imageAnalyses, 0)}</b>analyser</div>
+            </div>
+            <div className="table-wrap">
+              <table className="admin">
+                <thead><tr><th>AI-model</th><th>Kald</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
+                <tbody>
+                  {[...modelTotals.entries()].sort((a, b) => b[1].calls - a[1].calls).map(([model, stats]) => (
+                    <tr key={model}>
+                      <td>{model}</td>
+                      <td>{stats.calls}</td>
+                      <td>{stats.inputTokens.toLocaleString('da-DK')}</td>
+                      <td>{stats.outputTokens.toLocaleString('da-DK')}</td>
+                    </tr>
+                  ))}
+                  {modelTotals.size === 0 && <tr><td colSpan={4}>Ingen registreret AI-brug endnu.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
       )}
 
@@ -386,6 +554,15 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                   value={selectedScene.systemPrompt}
                   onChange={(e) => updateSelected({ systemPrompt: e.target.value })}
                 />
+              </label>
+              <label className="field">
+                Prompt til “Giv mig en opgave”
+                <textarea
+                  rows={6}
+                  value={selectedScene.taskPrompt}
+                  onChange={(e) => updateSelected({ taskPrompt: e.target.value })}
+                />
+                <span>Bruges sammen med den aktuelle chat, brugerens intensitet, grænser og oplyste udstyr.</span>
               </label>
               <label className="field">
                 Grundprompt til billeder

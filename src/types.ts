@@ -9,6 +9,7 @@ export type Personality = 'warm' | 'cold' | 'tease' | 'strict'
 export type Intensity = 'soft' | 'medium' | 'hard'
 export type Phase = 'age' | 'login' | 'admin' | 'rules' | 'setup' | 'pay' | 'session' | 'aftercare' | 'decoy'
 export type PrivacyMode = 'private' | 'device'
+export type NotificationStyle = 'discreet' | 'explicit'
 
 export type FetishId =
   | 'edge'
@@ -47,6 +48,7 @@ export interface Profile {
   chatName: string
   partnerImageUrl?: string
   privacyMode: PrivacyMode
+  notificationStyle: NotificationStyle
   sceneId: string
   role: Role
   figure: Figure

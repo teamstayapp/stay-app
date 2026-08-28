@@ -116,12 +116,13 @@ export function onSafeword(): string {
   return 'Safeword. Scene stoppet. Ingen ordre mere.'
 }
 
-export function aftercare(profile: Profile): string {
-  const p = pack(profile)
-  if (p.cei && profile.role === 'domme') {
-    return 'Hvis du fulgte CEI, er det ovre nu. Vand. Tæppe. Du er ikke slave i den her skærm.'
+export function aftercare(profile: Profile, reason: 'finish' | 'safeword' = 'finish'): string {
+  const name = profile.chatName.trim()
+  if (reason === 'safeword') {
+    return `Scenen er stoppet helt${name ? `, ${name}` : ''}. Er du okay? Træk vejret roligt, få lidt vand, og tag tøj eller et tæppe på, hvis det føles rart. Du bestemmer, om vi skal være stille eller tale lidt.`
   }
-  return 'Scene ovre. Vand. Du er ikke din rolle nu. Træk vejret.'
+
+  return `${name ? `${name}, du` : 'Du'} gjorde det rigtig godt, skat. Nu skal du bare slappe af og nyde roen. Tag gerne et bad, få lidt vand, eller læg dig godt til rette. Det er helt okay — der er ikke noget forkert i at lege lidt, når det foregår trygt mellem voksne.`
 }
 
 export function onMedia(profile: Profile, kind: 'image' | 'video'): string {

@@ -6,12 +6,11 @@ import { FETISH_META } from './persona'
 export const AI_MODELS = [
   { id: 'venice-uncensored-role-play', title: 'Venice Role Play' },
   { id: 'venice-uncensored-1-2', title: 'Venice Uncensored 1.2' },
-  { id: 'qwen-3-6-plus', title: 'Qwen 3.6 Plus Uncensored' },
 ] as const
 
 export const IMAGE_MODELS = [
   { id: 'grok-imagine-image', title: 'Grok Imagine Image' },
-  { id: 'qwen-image-2', title: 'Qwen Image 2' },
+  { id: 'lustify-v8', title: 'Lustify v8' },
   { id: 'venice-sd35', title: 'Venice SD 3.5' },
 ] as const
 
@@ -24,12 +23,15 @@ export interface ScenePreset {
   textModel: string
   imageModel: string
   systemPrompt: string
+  taskPrompt: string
   imagePrompt: string
   openingPrompt: string
   requiredFetish?: FetishId
 }
 
-const baseScenes: Omit<ScenePreset, 'order'>[] = [
+const DEFAULT_TASK_PROMPT = 'Giv én konkret, kort og sikker opgave, som naturligt fortsætter den aktuelle samtale. Tilpas opgaven til scenen, intensiteten, brugerens grænser og det oplyste udstyr. Brug ikke udstyr, som ikke er angivet. Angiv et tydeligt mål og en foreslået varighed, men giv kun én opgave ad gangen.'
+
+const baseScenes: Omit<ScenePreset, 'order' | 'taskPrompt'>[] = [
   {
     id: 'soft-care', title: 'Blød og omsorgsfuld', blurb: 'Rolig styring, tryghed og plads til pauser.',
     enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image',
@@ -46,7 +48,7 @@ const baseScenes: Omit<ScenePreset, 'order'>[] = [
   },
   {
     id: 'playful-challenge', title: 'Drilsk og udfordrende', blurb: 'Legende provokation og små udfordringer.',
-    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'qwen-image-2',
+    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image',
     systemPrompt: 'Vær drilsk, legende og udfordrende. Brug humor og spænding, men respekter grænser og nej.',
     imagePrompt: 'Playful fictional adult character, teasing expression, cinematic colorful lighting.',
     openingPrompt: 'Lad os se, hvor god du er til at følge med, når jeg gør det lidt sværere.',
@@ -61,7 +63,7 @@ const baseScenes: Omit<ScenePreset, 'order'>[] = [
   },
   {
     id: 'free-chat', title: 'Fri samtale', blurb: 'Åben dialog inden for de valgte temaer og grænser.',
-    enabled: true, textModel: 'venice-uncensored-1-2', imageModel: 'qwen-image-2',
+    enabled: true, textModel: 'venice-uncensored-1-2', imageModel: 'grok-imagine-image',
     systemPrompt: 'Før en naturlig og åben samtale. Følg brugerens retning uden at opfinde temaer, som ikke er valgt.',
     imagePrompt: 'Natural portrait of a fictional adult character, tasteful cinematic light.',
     openingPrompt: 'Hvad har du lyst til at udforske i dag?',
@@ -83,7 +85,7 @@ const fetishPrompt: Record<FetishId, string> = {
   roleskin: 'Brug kun tydeligt voksne rolletemaer og aldrig barnlige eller mindreårige roller.',
 }
 
-const extraScenes: Omit<ScenePreset, 'order'>[] = (Object.keys(FETISH_META) as FetishId[])
+const extraScenes: Omit<ScenePreset, 'order' | 'taskPrompt'>[] = (Object.keys(FETISH_META) as FetishId[])
   .filter((id) => !['edge', 'aftercare'].includes(id))
   .map((id) => ({
     id: `fetish-${id}`, title: FETISH_META[id].title, blurb: FETISH_META[id].blurb,
@@ -95,14 +97,18 @@ const extraScenes: Omit<ScenePreset, 'order'>[] = (Object.keys(FETISH_META) as F
   }))
 
 export const DEFAULT_SCENES: ScenePreset[] = [...baseScenes, ...extraScenes]
-  .map((scene, order) => ({ ...scene, order }))
+  .map((scene, order) => ({ ...scene, taskPrompt: DEFAULT_TASK_PROMPT, order }))
 
 function normalize(value: Partial<ScenePreset>, fallback: ScenePreset): ScenePreset {
+  const imageModel = IMAGE_MODELS.some((model) => model.id === value.imageModel)
+    ? value.imageModel!
+    : fallback.imageModel
   return {
     ...fallback,
     ...value,
     id: fallback.id,
     order: typeof value.order === 'number' ? value.order : fallback.order,
+    imageModel,
   }
 }
 

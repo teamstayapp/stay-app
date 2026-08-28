@@ -17,8 +17,59 @@ service cloud.firestore {
     }
 
     match /userProfiles/{userId} {
-      allow read, create, update: if signedInAndVerified()
-        && request.auth.uid == userId;
+      allow read: if isStayAdmin() || (signedInAndVerified() && request.auth.uid == userId);
+      allow create, update: if signedInAndVerified() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /userEntitlements/{userId} {
+      allow read: if isStayAdmin() || (signedInAndVerified() && request.auth.uid == userId);
+      allow create, update: if isStayAdmin();
+      allow delete: if false;
+    }
+
+    match /usageConfig/{configId} {
+      allow read: if signedInAndVerified();
+      allow create, update: if isStayAdmin();
+      allow delete: if false;
+    }
+
+    match /usageDaily/{usageId} {
+      allow read: if isStayAdmin() || (signedInAndVerified()
+        && usageId.matches(request.auth.uid + '_.*'));
+      allow create: if signedInAndVerified()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.chatCalls >= 0;
+      allow update: if signedInAndVerified()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.chatCalls >= resource.data.chatCalls;
+      allow delete: if false;
+    }
+
+    match /usageMonthly/{usageId} {
+      allow read: if isStayAdmin() || (signedInAndVerified()
+        && usageId.matches(request.auth.uid + '_.*'));
+      allow create: if signedInAndVerified()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.chatCalls >= 0
+        && request.resource.data.imageGenerations >= 0
+        && request.resource.data.imageAnalyses >= 0;
+      allow update: if signedInAndVerified()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.chatCalls >= resource.data.chatCalls
+        && request.resource.data.imageGenerations >= resource.data.imageGenerations
+        && request.resource.data.imageAnalyses >= resource.data.imageAnalyses;
+      allow delete: if false;
+    }
+
+    match /purchaseRequests/{requestId} {
+      allow read: if isStayAdmin() || (signedInAndVerified() && resource.data.uid == request.auth.uid);
+      allow create: if signedInAndVerified()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isStayAdmin();
       allow delete: if false;
     }
 

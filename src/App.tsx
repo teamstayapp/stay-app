@@ -9,6 +9,7 @@ import type {
   Line,
   Look,
   Nearness,
+  NotificationStyle,
   Penis,
   Personality,
   Phase,
@@ -37,17 +38,32 @@ import {
 import { BLOCKED_REPLY, POLICY_SECTIONS, isBlocked } from './engine/policy'
 import { ADDONS, PLANS } from './engine/plans'
 import { currentAccount, logout, observeAccount, type Account } from './engine/auth'
-import { aiIsConfigured, askAi } from './engine/ai'
+import { aiIsConfigured, analyzeImage, askAi, generatePartnerImage } from './engine/ai'
 import { AdminScreen, LoginScreen } from './screens/AuthScreens'
 import { isStandalone } from './pwa'
 import { availableScenes, DEFAULT_SCENES, observeScenes } from './engine/scenes'
 import { observeChatName, saveChatName } from './engine/userProfile'
 import {
+  DEFAULT_USAGE_CONFIG,
+  currentUsagePeriod,
+  ensureUserProfile,
+  limitsForPlan,
+  observeEntitlement,
+  observeUsageConfig,
+  observeUserUsage,
+  requestAddonPurchase,
+  requestPlanPurchase,
+  type Entitlement,
+  type UsageSnapshot,
+} from './engine/usage'
+import {
   clearDeviceSession,
   hasDeviceSession,
   loadDeviceSession,
+  loadNotificationStyle,
   loadPrivacyMode,
   saveDeviceSession,
+  saveNotificationStyle,
   savePrivacyMode,
 } from './engine/sessionStore'
 import './App.css'
@@ -82,6 +98,7 @@ const EQUIPMENT: Array<{ id: EquipmentId; title: string }> = [
 const emptyProfile = (): Profile => ({
   chatName: '',
   privacyMode: 'private',
+  notificationStyle: 'discreet',
   sceneId: 'soft-care',
   role: 'slave',
   figure: 'mistress',
@@ -116,6 +133,7 @@ export default function App() {
   const [draft, setDraft] = useState('')
   const [near, setNear] = useState<Nearness>('ok')
   const [cycle, setCycle] = useState(1)
+  const [aftercareReason, setAftercareReason] = useState<'finish' | 'safeword'>('finish')
   const [running, setRunning] = useState(false)
   const [shopOpen, setShopOpen] = useState(false)
   const [account, setAccount] = useState<Account | null>(() => currentAccount())
@@ -124,6 +142,24 @@ export default function App() {
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [rulesConfirmed, setRulesConfirmed] = useState(false)
   const [aiThinking, setAiThinking] = useState(false)
+  const [imageBusy, setImageBusy] = useState(false)
+  const [imageNotice, setImageNotice] = useState('')
+  const [purchaseNotice, setPurchaseNotice] = useState('')
+  const [usageConfig, setUsageConfig] = useState(DEFAULT_USAGE_CONFIG)
+  const [usage, setUsage] = useState<UsageSnapshot>({
+    chatToday: 0,
+    chatMonth: 0,
+    imageGenerations: 0,
+    imageAnalyses: 0,
+    models: {},
+  })
+  const [entitlement, setEntitlement] = useState<Entitlement>({
+    plan: 'free',
+    extraPacks: false,
+    bonusPeriod: currentUsagePeriod(),
+    bonusImageGenerations: 0,
+    bonusImageAnalyses: 0,
+  })
   const [sceneCatalog, setSceneCatalog] = useState(DEFAULT_SCENES)
   const [savedSessionAvailable, setSavedSessionAvailable] = useState(false)
   const [back, setBack] = useState<Phase>('age')
@@ -162,10 +198,29 @@ export default function App() {
 
   useEffect(() => {
     if (!account) return
+    void ensureUserProfile(account.id, account.email).catch(() => undefined)
+    const stopConfig = observeUsageConfig(setUsageConfig)
+    const stopEntitlement = observeEntitlement(account.id, (value) => {
+      const effective = account.role === 'admin' ? { ...value, plan: 'plus' as const } : value
+      setEntitlement(effective)
+      setProfile((current) => ({
+        ...current,
+        plan: effective.plan,
+        extraPacks: effective.extraPacks || effective.plan === 'plus',
+        unlocked: effective.extraPacks || effective.plan === 'plus' ? ALL : current.unlocked,
+      }))
+    })
+    const stopUsage = observeUserUsage(account.id, setUsage)
+    return () => { stopConfig(); stopEntitlement(); stopUsage() }
+  }, [account])
+
+  useEffect(() => {
+    if (!account) return
     const privacyMode = loadPrivacyMode(account.id)
+    const notificationStyle = loadNotificationStyle(account.id)
     void hasDeviceSession(account.id).then((available) => {
       setSavedSessionAvailable(available)
-      setProfile((current) => current.privacyMode === privacyMode ? current : { ...current, privacyMode })
+      setProfile((current) => ({ ...current, privacyMode, notificationStyle }))
     })
   }, [account])
 
@@ -213,6 +268,11 @@ export default function App() {
       savedMediaBlobRef.current = null
       void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
     }
+  }
+
+  function chooseNotificationStyle(style: NotificationStyle) {
+    setProfile((current) => ({ ...current, notificationStyle: style }))
+    if (account) saveNotificationStyle(account.id, style)
   }
 
   async function resumeSavedSession() {
@@ -298,7 +358,7 @@ export default function App() {
     setPhase('session')
   }
 
-  function attachMedia(file: File) {
+  async function attachMedia(file: File) {
     if (isBlocked(file.name)) {
       push(systemLine('Filnavnet ramte bloklisten. Ikke brugt.'))
       return
@@ -318,7 +378,61 @@ export default function App() {
     const kind = video ? 'video' : 'image'
     savedMediaBlobRef.current = file
     setMedia({ url, kind, blob: file })
-    push(youLine(kind === 'video' ? 'Viste et klip' : 'Viste et billede'), aiLine(onMedia(profile, kind)))
+    if (kind === 'video' || !aiIsConfigured()) {
+      push(youLine(kind === 'video' ? 'Viste et klip' : 'Viste et billede'), aiLine(onMedia(profile, kind)))
+      return
+    }
+
+    const controller = new AbortController()
+    aiRequestRef.current?.abort()
+    aiRequestRef.current = controller
+    setAiThinking(true)
+    push(youLine('Viste et billede'))
+    try {
+      const reply = await analyzeImage({
+        profile,
+        near,
+        cycle,
+        lines,
+        text: 'Se på billedet og reager naturligt i vores aktuelle samtale. Beskriv kun det, du tydeligt kan se.',
+        file,
+        signal: controller.signal,
+      })
+      push(aiLine(reply))
+    } catch (error) {
+      if (controller.signal.aborted) return
+      const message = error instanceof Error ? error.message : 'Ukendt billedfejl'
+      push(systemLine(`AI kunne ikke aflæse billedet: ${message}`))
+    } finally {
+      if (aiRequestRef.current === controller) aiRequestRef.current = null
+      setAiThinking(false)
+    }
+  }
+
+  async function createPartnerImage() {
+    if (imageBusy) return
+    if (!aiIsConfigured()) {
+      setImageNotice('Billed-AI er ikke konfigureret endnu.')
+      return
+    }
+    if (imageGenerationsLeft < 1) {
+      setImageNotice('Du har ingen figurbilleder tilbage på planen.')
+      return
+    }
+    const controller = new AbortController()
+    setImageBusy(true)
+    setImageNotice('AI-partneren bliver skabt…')
+    try {
+      const imageUrl = await generatePartnerImage({ profile, signal: controller.signal })
+      setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
+      setImageNotice(profile.privacyMode === 'device'
+        ? 'Billedet er oprettet og gemmes kun på denne enhed.'
+        : 'Billedet er oprettet og slettes, når den private session forlades.')
+    } catch (error) {
+      setImageNotice(error instanceof Error ? error.message : 'Billedet kunne ikke oprettes.')
+    } finally {
+      setImageBusy(false)
+    }
   }
 
   function tickSession(kind: 'close' | 'ok' | 'too' | 'deny' | 'finish' | 'safe') {
@@ -326,6 +440,7 @@ export default function App() {
     setAiThinking(false)
     if (kind === 'safe') {
       setRunning(false)
+      setAftercareReason('safeword')
       push(youLine(profile.limits.safeword), aiLine(onSafeword()), systemLine('Aftercare'))
       dropMedia()
       setPhase('aftercare')
@@ -356,9 +471,42 @@ export default function App() {
       return
     }
     setRunning(false)
-    push(youLine('Finish'), aiLine(onFinish(profile)), aiLine(aftercare(profile)))
+    setAftercareReason('finish')
+    push(youLine('Finish'), aiLine(onFinish(profile)))
     dropMedia()
     setPhase('aftercare')
+  }
+
+  async function sendAiRequest(
+    text: string,
+    intent: 'chat' | 'task',
+    visibleText = text,
+  ) {
+    if (!text || aiThinking) return
+    if (!aiIsConfigured()) {
+      push(
+        youLine(visibleText),
+        aiLine(intent === 'task' ? 'Opgaveknappen kræver, at AI-chatten er aktiv.' : replyToText(profile, text, near)),
+      )
+      return
+    }
+
+    const controller = new AbortController()
+    aiRequestRef.current = controller
+    setAiThinking(true)
+    push(youLine(visibleText))
+    try {
+      const reply = await askAi({ profile, near, cycle, lines, text, intent, signal: controller.signal })
+      push(aiLine(reply))
+    } catch (error) {
+      if (controller.signal.aborted) return
+      const message = error instanceof Error ? error.message : 'Ukendt AI-fejl'
+      push(systemLine(`AI kunne ikke svare: ${message}`))
+      if (intent === 'chat') push(aiLine(replyToText(profile, text, near)))
+    } finally {
+      if (aiRequestRef.current === controller) aiRequestRef.current = null
+      setAiThinking(false)
+    }
   }
 
   async function sendText() {
@@ -373,26 +521,15 @@ export default function App() {
       push(youLine(t), aiLine(BLOCKED_REPLY))
       return
     }
-    if (!aiIsConfigured()) {
-      push(youLine(t), aiLine(replyToText(profile, t, near)))
-      return
-    }
+    await sendAiRequest(t, 'chat')
+  }
 
-    const controller = new AbortController()
-    aiRequestRef.current = controller
-    setAiThinking(true)
-    push(youLine(t))
-    try {
-      const reply = await askAi({ profile, near, cycle, lines, text: t, signal: controller.signal })
-      push(aiLine(reply))
-    } catch (error) {
-      if (controller.signal.aborted) return
-      const message = error instanceof Error ? error.message : 'Ukendt AI-fejl'
-      push(systemLine(`AI kunne ikke svare: ${message}`), aiLine(replyToText(profile, t, near)))
-    } finally {
-      if (aiRequestRef.current === controller) aiRequestRef.current = null
-      setAiThinking(false)
-    }
+  async function requestTask() {
+    await sendAiRequest(
+      'Giv mig én konkret opgave, der fortsætter vores aktuelle samtale og passer til mine valg, grænser og mit udstyr.',
+      'task',
+      'Giv mig en opgave',
+    )
   }
 
   function unlock(id: FetishId) {
@@ -431,6 +568,23 @@ export default function App() {
         : [...current.equipment, id],
     }))
   }
+
+  const activeUsageLimits = limitsForPlan(usageConfig, entitlement.plan)
+  const activeBonusGenerations = entitlement.bonusPeriod === currentUsagePeriod()
+    ? entitlement.bonusImageGenerations
+    : 0
+  const activeBonusAnalyses = entitlement.bonusPeriod === currentUsagePeriod()
+    ? entitlement.bonusImageAnalyses
+    : 0
+  const imageAnalysesLeft = Math.max(
+    0,
+    activeUsageLimits.imageAnalysesMonthly + activeBonusAnalyses - usage.imageAnalyses,
+  )
+  const imageGenerationsLeft = Math.max(
+    0,
+    activeUsageLimits.imageGenerationsMonthly + activeBonusGenerations - usage.imageGenerations,
+  )
+  const chatMessagesLeft = Math.max(0, activeUsageLimits.chatDaily - usage.chatToday)
 
   if (phase === 'login') {
     return (
@@ -555,8 +709,15 @@ export default function App() {
         <p className="kicker">Abonnement</p>
         <h1>Priser</h1>
         <p className="hint">
-          Chat koster os øre. I tjener på billeder og Plus. Betaling er mock i MVP.
+          Forbruget håndhæves centralt. Betaling er endnu manuel: et køb sendes til admin til godkendelse.
         </p>
+        <section className="usage-card">
+          <h2>Dit forbrug</h2>
+          <div><strong>{usage.chatToday} / {activeUsageLimits.chatDaily}</strong><span>chat i dag</span></div>
+          <div><strong>{usage.imageGenerations} / {usage.imageGenerations + imageGenerationsLeft}</strong><span>genererede billeder denne måned</span></div>
+          <div><strong>{usage.imageAnalyses} / {usage.imageAnalyses + imageAnalysesLeft}</strong><span>billedanalyser denne måned</span></div>
+        </section>
+        {purchaseNotice && <p className="form-message success">{purchaseNotice}</p>}
         {PLANS.map((plan) => (
           <section key={plan.id} className="sheet" style={{ marginTop: '0.75rem' }}>
             <h2 style={{ marginTop: 0 }}>
@@ -564,23 +725,26 @@ export default function App() {
             </h2>
             <p className="lede">{plan.blurb}</p>
             <p className="hint">
-              {plan.text} · {plan.images} billeder · {plan.nsfw ? 'NSFW' : 'ikke NSFW'} ·{' '}
+              Op til {limitsForPlan(usageConfig, plan.id).chatDaily} chatbeskeder/dag ·{' '}
+              {limitsForPlan(usageConfig, plan.id).imageGenerationsMonthly} billeder ·{' '}
+              {limitsForPlan(usageConfig, plan.id).imageAnalysesMonthly} billedanalyser/md ·{' '}
+              {plan.nsfw ? 'NSFW' : 'ikke NSFW'} ·{' '}
               {plan.packs ? 'alle pakker' : 'kun kerne'}
             </p>
             <button
               className={profile.plan === plan.id ? 'chip on' : 'primary'}
-              onClick={() =>
-                setProfile({
-                  ...profile,
-                  plan: plan.id,
-                  nsfw: plan.nsfw ? profile.nsfw || plan.id !== 'free' : false,
-                  imagesLeft: plan.images,
-                  extraPacks: plan.packs,
-                  unlocked: plan.packs ? ALL : defaultUnlocked(),
-                })
-              }
+              disabled={profile.plan === plan.id || plan.id === 'free'}
+              onClick={async () => {
+                if (!account) return
+                try {
+                  await requestPlanPurchase(account.id, account.email, plan.id)
+                  setPurchaseNotice(`Din bestilling af ${plan.title} er sendt til admin.`)
+                } catch (error) {
+                  setPurchaseNotice(error instanceof Error ? error.message : 'Bestillingen kunne ikke sendes.')
+                }
+              }}
             >
-              {profile.plan === plan.id ? 'Valgt' : 'Vælg'}
+              {profile.plan === plan.id ? 'Aktiv plan' : plan.id === 'free' ? 'Gratis plan' : 'Bestil'}
             </button>
           </section>
         ))}
@@ -595,16 +759,17 @@ export default function App() {
             </div>
             <button
               className="chip on"
-              onClick={() =>
-                setProfile({
-                  ...profile,
-                  imagesLeft: profile.imagesLeft + (a.images ?? 0),
-                  extraPacks: profile.extraPacks || Boolean(a.packs),
-                  unlocked: a.packs ? ALL : profile.unlocked,
-                })
-              }
+              onClick={async () => {
+                if (!account) return
+                try {
+                  await requestAddonPurchase(account.id, account.email, a.id)
+                  setPurchaseNotice(`${a.title} er sendt til admin til godkendelse.`)
+                } catch (error) {
+                  setPurchaseNotice(error instanceof Error ? error.message : 'Tilkøbet kunne ikke sendes.')
+                }
+              }}
             >
-              Køb
+              Bestil
             </button>
           </div>
         ))}
@@ -703,6 +868,44 @@ export default function App() {
           )}
         </section>
 
+        <section className="notification-choice" aria-labelledby="notification-style-title">
+          <div>
+            <h2 id="notification-style-title">Hvordan må opgavebeskeder se ud?</h2>
+            <p className="hint">Valget bruges, når mobilpåmindelser bliver slået til.</p>
+          </div>
+          <label className={profile.notificationStyle === 'discreet' ? 'privacy-option on' : 'privacy-option'}>
+            <input
+              type="radio"
+              name="notification-style"
+              checked={profile.notificationStyle === 'discreet'}
+              onChange={() => chooseNotificationStyle('discreet')}
+            />
+            <span>
+              <strong>Diskret</strong>
+              <small>Eksempel: “Stay · Din næste opgave er klar.”</small>
+            </span>
+          </label>
+          <label className={profile.notificationStyle === 'explicit' ? 'privacy-option on' : 'privacy-option'}>
+            <input
+              type="radio"
+              name="notification-style"
+              checked={profile.notificationStyle === 'explicit'}
+              onChange={() => chooseNotificationStyle('explicit')}
+            />
+            <span>
+              <strong>Detaljeret / fræk</strong>
+              <small>Påmindelsen må vise opgavens konkrete tekst på låseskærmen.</small>
+            </span>
+          </label>
+          {profile.notificationStyle === 'explicit' && (
+            <div className="notification-preview" role="alert">
+              <strong>Kan ses af andre på din låseskærm</strong>
+              <span>Eksempel: “Mistress: Din næste opgave er klar — gå et privat sted og gør dig klar.”</span>
+            </div>
+          )}
+          <p className="privacy-note">Valget slås aldrig til automatisk. Du godkender også hver påmindelse, før den planlægges.</p>
+        </section>
+
         <div className="scene-grid">
           {scenes.map((scene) => (
             <button
@@ -782,7 +985,7 @@ export default function App() {
             'Valgfri nøgenhed og frække billeder. Kun fiktive voksne. Aldrig rigtige personer eller mindreårige.'}
         </p>
         <p className="hint">
-          “Skab figur” kalder et image-API senere med de her sliders. Ingen race-play-pakke — hud og krop er bare udseende.
+          “Skab AI-partner” bruger billedmodellen, som admin har valgt til scenen. Hud og krop er kun figurens udseende.
         </p>
 
         <h2>Krop</h2>
@@ -844,6 +1047,33 @@ export default function App() {
             </div>
           </>
         )}
+
+        <section className="partner-image-builder" aria-live="polite">
+          <div className={profile.partnerImageUrl ? 'generated-partner-image' : 'generated-partner-image empty'}>
+            {profile.partnerImageUrl ? (
+              <img
+                src={profile.partnerImageUrl}
+                alt={`Genereret billede af ${profile.figure === 'mistress' ? 'Mistress' : 'Master'}`}
+              />
+            ) : (
+              <span>{profile.figure === 'mistress' ? 'M' : 'M'}</span>
+            )}
+          </div>
+          <div>
+            <h2>AI-partnerens billede</h2>
+            <p className="hint">Billedet laves ud fra scene, stil, krop og de øvrige valg ovenfor.</p>
+            <button
+              type="button"
+              className="primary"
+              disabled={imageBusy || imageGenerationsLeft < 1}
+              onClick={() => void createPartnerImage()}
+            >
+              {imageBusy ? 'Skaber billede…' : profile.partnerImageUrl ? 'Lav et nyt billede' : 'Skab AI-partner'}
+            </button>
+            <small>{imageGenerationsLeft} figurbilleder tilbage</small>
+          </div>
+        </section>
+        {imageNotice && <p className="form-message">{imageNotice}</p>}
 
         <h2>Hvordan skal AI-partneren være?</h2>
         <p className="hint">Vælg en grundstil, eller skriv dit eget ønske nedenunder.</p>
@@ -958,7 +1188,8 @@ export default function App() {
         </label>
 
         <p className="hint">
-          Plan: {profile.plan} · figurer tilbage: {profile.imagesLeft}
+          Plan: {profile.plan} · chat tilbage i dag: {chatMessagesLeft} · figurbilleder tilbage: {imageGenerationsLeft}
+          {' '}· billedanalyser tilbage: {imageAnalysesLeft}
         </p>
         <div className="row">
           <button className="ghost" onClick={() => setPhase('pay')}>
@@ -1008,7 +1239,7 @@ export default function App() {
           Regler
         </button>
         <h1>Scene ovre</h1>
-        <p className="lede">{aftercare(profile)}</p>
+        <p className="lede">{aftercare(profile, aftercareReason)}</p>
         <div className="log">
           {lines.slice(-4).map((l) => (
             <p key={l.id} className={l.from}>
@@ -1085,7 +1316,7 @@ export default function App() {
               <img src={media.url} alt="Dit valgte medie" />
             )}
             <div className="preview-footer">
-              <span>Kun på din telefon · ingen upload</span>
+          <span>{media.kind === 'image' && aiIsConfigured() ? 'Sendt til privat billedanalyse' : 'Kun på din telefon'}</span>
               <button type="button" onClick={dropMedia}>Skjul</button>
             </div>
           </div>
@@ -1094,6 +1325,12 @@ export default function App() {
       </div>
 
       <div className="chat-bottom">
+        <div className="task-request">
+          <button type="button" disabled={aiThinking} onClick={() => void requestTask()}>
+            {aiThinking ? 'Partneren tænker…' : 'Giv mig en opgave'}
+          </button>
+          <span>Opgaven bygger på scenen og den aktuelle chat.</span>
+        </div>
         <div className="session-actions" aria-label="Hurtige scenevalg">
           <button onClick={() => tickSession('close')}>Tæt på</button>
           <button onClick={() => tickSession('ok')}>Igen</button>
@@ -1135,7 +1372,9 @@ export default function App() {
             {aiThinking ? '···' : 'Send'}
           </button>
         </form>
-        <p className="chat-caption">{aiIsConfigured() ? 'AI-chat aktiv' : 'Demo-svar'} · Billeder fra + bliver på din telefon</p>
+        <p className="chat-caption">
+          {aiIsConfigured() ? 'AI aktiv' : 'Demo-svar'} · {chatMessagesLeft} chatbeskeder · {imageAnalysesLeft} billedanalyser tilbage
+        </p>
       </div>
       <input
         ref={fileRef}
@@ -1145,7 +1384,7 @@ export default function App() {
         onChange={(e) => {
           const file = e.target.files?.[0]
           e.target.value = ''
-          if (file) attachMedia(file)
+          if (file) void attachMedia(file)
         }}
       />
     </main>

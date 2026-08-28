@@ -55,10 +55,11 @@ npx firebase-tools deploy --only firestore:rules
 ```
 
 Vælg det samme Firebase-projekt. Reglerne giver verificerede brugere læseadgang
-til `scenePresets`, mens kun `teamstayapp@gmail.com` må skrive. Hver verificeret
-bruger kan desuden læse og gemme sit eget chatnavn i `userProfiles`, men ikke
-andre brugeres oplysninger. Hvis adminmailen ændres, skal den også ændres i
-`firestore.rules`.
+til `scenePresets` og de centrale forbrugsgrænser, mens kun
+`teamstayapp@gmail.com` må ændre dem. Brugeren kan kun læse egne rettigheder og
+egne forbrugsposter. Workeren registrerer forbruget med brugerens
+Firebase-session. Admin kan læse den samlede modelstatistik og godkende køb.
+Hvis adminmailen ændres, skal den også ændres i `firestore.rules`.
 
 Ved første login åbner admin fanen **Prompts** og trykker **Udgiv til alle**.
 Det opretter standardscenerne centralt.
@@ -71,6 +72,6 @@ Det opretter standardscenerne centralt.
 4. Log ind i Stay.
 5. Test **Glemt adgangskode?**.
 
-Login og chatnavn virker derefter på tværs af enheder. Plan, billedsaldo og de
-øvrige figurvalg er stadig lokale i denne version; de flyttes til Firestore i
-næste databasetrin.
+Login, chatnavn, planrettigheder og AI-forbrug virker derefter på tværs af
+enheder. Selve private chats og figurvalg gemmes fortsat kun efter brugerens
+valgte privatlivstilstand.

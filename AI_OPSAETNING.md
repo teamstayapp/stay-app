@@ -1,4 +1,4 @@
-# Stay — slå rigtig AI-chat til
+# Stay — slå rigtig AI-chat og billeder til
 
 Koden er klar til Venice AI via en Cloudflare Worker. Venice-nøglen må aldrig
 skrives i GitHub-koden eller i en `VITE_`-variabel.
@@ -46,6 +46,25 @@ Svaret skal indeholde `"ok":true` og `"venice":true`.
 5. Gå til **Actions → GitHub Pages → Run workflow**.
 
 Efter en grøn kørsel viser chatten teksten **AI-chat aktiv** nederst i scenen.
+
+## Billedfunktionerne
+
+Den samme Cloudflare Worker indeholder nu også:
+
+- `POST /image/generate` til et AI-genereret partnerportræt
+- `POST /vision` til analyse af et billede, som brugeren vælger i chatten
+- serverkontrol af daglige/månedlige grænser før hvert Venice-kald
+- registrering af kald og tokens pr. AI-model i Firestore
+
+Admin vælger billedgenereringsmodellen særskilt for hver scene. Standardlisten
+indeholder kun private billedmodeller, som virker med en Venice-nøgle sat til
+**Private models only**. Tekstmodellerne i appen understøtter også vision.
+
+Hvis Workeren indsættes manuelt i Cloudflare, bruges hele filen
+`worker/stay-api-worker-manual.js`, hvorefter der trykkes **Deploy**.
+
+Forbrugskontrollen kræver også de nyeste regler fra `firestore.rules`. Udgiv
+dem i Firebase, før den nye Worker testes. Se [FORBRUG_OG_GRAENSER.md](FORBRUG_OG_GRAENSER.md).
 
 ## Sikkerhed før offentlig test
 

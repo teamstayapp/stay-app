@@ -1,5 +1,5 @@
 export type PlanId = 'free' | 'solo' | 'plus'
-export type AddOnId = 'img50' | 'img150' | 'packs'
+export type AddOnId = 'img50' | 'img150' | 'vision50' | 'vision200' | 'packs'
 
 export interface Plan {
   id: PlanId
@@ -7,6 +7,7 @@ export interface Plan {
   dkkMonth: number
   text: string
   images: number
+  imageAnalyses: number
   packs: boolean
   nsfw: boolean
   blurb: string
@@ -17,6 +18,7 @@ export interface AddOn {
   title: string
   dkk: number
   images?: number
+  imageAnalyses?: number
   packs?: boolean
   blurb: string
 }
@@ -27,8 +29,9 @@ export const PLANS: Plan[] = [
     id: 'free',
     title: 'Prøv',
     dkkMonth: 0,
-    text: '20 beskeder / dag',
+    text: '50 beskeder / dag',
     images: 2,
+    imageAnalyses: 5,
     packs: false,
     nsfw: false,
     blurb: 'Mærk appen. Ingen Fræk. To figurer.',
@@ -39,6 +42,7 @@ export const PLANS: Plan[] = [
     dkkMonth: 79,
     text: 'Åben chat',
     images: 25,
+    imageAnalyses: 100,
     packs: false,
     nsfw: true,
     blurb: 'NSFW + edge. 25 figurer om måneden.',
@@ -49,6 +53,7 @@ export const PLANS: Plan[] = [
     dkkMonth: 149,
     text: 'Åben chat',
     images: 80,
+    imageAnalyses: 300,
     packs: true,
     nsfw: true,
     blurb: 'Alle fetish-pakker. 80 figurer. Det I skal tjene på.',
@@ -69,6 +74,20 @@ export const ADDONS: AddOn[] = [
     dkk: 119,
     images: 150,
     blurb: 'Bedre stykkpris end +50.',
+  },
+  {
+    id: 'vision50',
+    title: '+50 billedanalyser',
+    dkk: 19,
+    imageAnalyses: 50,
+    blurb: 'Til flere billeder sendt ind i chatten.',
+  },
+  {
+    id: 'vision200',
+    title: '+200 billedanalyser',
+    dkk: 59,
+    imageAnalyses: 200,
+    blurb: 'Lavere pris pr. billedanalyse.',
   },
   {
     id: 'packs',

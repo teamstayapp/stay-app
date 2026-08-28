@@ -1,9 +1,10 @@
-import type { Line, Nearness, PrivacyMode, Profile } from '../types'
+import type { Line, Nearness, NotificationStyle, PrivacyMode, Profile } from '../types'
 
 const DB_NAME = 'stay-device-data'
 const STORE_NAME = 'sessions'
 const FALLBACK_PREFIX = 'stay.saved-session.'
 const PRIVACY_PREFIX = 'stay.privacy-mode.'
+const NOTIFICATION_STYLE_PREFIX = 'stay.notification-style.'
 
 export interface DeviceSession {
   profile: Profile
@@ -99,4 +100,12 @@ export function loadPrivacyMode(userId: string): PrivacyMode {
 
 export function savePrivacyMode(userId: string, mode: PrivacyMode): void {
   localStorage.setItem(PRIVACY_PREFIX + userId, mode)
+}
+
+export function loadNotificationStyle(userId: string): NotificationStyle {
+  return localStorage.getItem(NOTIFICATION_STYLE_PREFIX + userId) === 'explicit' ? 'explicit' : 'discreet'
+}
+
+export function saveNotificationStyle(userId: string, style: NotificationStyle): void {
+  localStorage.setItem(NOTIFICATION_STYLE_PREFIX + userId, style)
 }
