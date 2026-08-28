@@ -30,6 +30,15 @@ git push -u origin main
 
 Ingen Venice-nøgle i repoet. Pages er klik-testen.
 
+Se [AI_OPSAETNING.md](AI_OPSAETNING.md) for at udgive Worker og slå rigtig
+Venice-chat til uden at lægge API-nøglen i browseren.
+
+Se [FIREBASE_LOGIN.md](FIREBASE_LOGIN.md) for rigtigt login, e-mailbekræftelse
+og nulstilling af adgangskode.
+
+Se [PROMPT_ADMIN.md](PROMPT_ADMIN.md) for scenevalg, adminredigering af prompts
+og modelvalg.
+
 ## Konto (MVP)
 
 Brugere ligger i `localStorage`. Senere: rigtig backend + hashed kode.

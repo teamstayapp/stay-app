@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   Body,
   Breasts,
+  EquipmentId,
   FetishId,
   Figure,
   Intensity,
@@ -11,6 +12,7 @@ import type {
   Penis,
   Personality,
   Phase,
+  PrivacyMode,
   Profile,
   Role,
   Skin,
@@ -26,19 +28,28 @@ import {
   onFinish,
   onOk,
   onSafeword,
-  onStart,
   onTooMuch,
   onMedia,
-  opening,
   replyToText,
   systemLine,
   youLine,
 } from './engine/persona'
-import { BLOCKED_REPLY, POLICY_SECTIONS, POLICY_TEXT, isBlocked } from './engine/policy'
+import { BLOCKED_REPLY, POLICY_SECTIONS, isBlocked } from './engine/policy'
 import { ADDONS, PLANS } from './engine/plans'
-import { currentAccount, logout, type Account } from './engine/auth'
+import { currentAccount, logout, observeAccount, type Account } from './engine/auth'
+import { aiIsConfigured, askAi } from './engine/ai'
 import { AdminScreen, LoginScreen } from './screens/AuthScreens'
 import { isStandalone } from './pwa'
+import { availableScenes, DEFAULT_SCENES, observeScenes } from './engine/scenes'
+import { observeChatName, saveChatName } from './engine/userProfile'
+import {
+  clearDeviceSession,
+  hasDeviceSession,
+  loadDeviceSession,
+  loadPrivacyMode,
+  saveDeviceSession,
+  savePrivacyMode,
+} from './engine/sessionStore'
 import './App.css'
 
 const ALL: FetishId[] = [
@@ -56,7 +67,22 @@ const ALL: FetishId[] = [
   'roleskin',
 ]
 
+const EQUIPMENT: Array<{ id: EquipmentId; title: string }> = [
+  { id: 'lube', title: 'Glidecreme' },
+  { id: 'vibrator', title: 'Vibrator' },
+  { id: 'sleeve', title: 'Sleeve' },
+  { id: 'dildo', title: 'Dildo' },
+  { id: 'plug', title: 'Plug' },
+  { id: 'strap_on', title: 'Strap-on' },
+  { id: 'soft_cuffs', title: 'Bløde manchetter' },
+  { id: 'blindfold', title: 'Bind for øjnene' },
+  { id: 'chastity', title: 'Kyskhedsbur' },
+]
+
 const emptyProfile = (): Profile => ({
+  chatName: '',
+  privacyMode: 'private',
+  sceneId: 'soft-care',
   role: 'slave',
   figure: 'mistress',
   look: 'clothed',
@@ -65,9 +91,12 @@ const emptyProfile = (): Profile => ({
   breasts: 'medium',
   penis: 'large',
   personality: 'cold',
+  customWish: '',
   nsfw: false,
   intensity: 'medium',
   fetishes: ['edge', 'power'],
+  equipment: [],
+  customEquipment: '',
   limits: {
     safeword: 'rød',
     cei: false,
@@ -92,20 +121,140 @@ export default function App() {
   const [account, setAccount] = useState<Account | null>(() => currentAccount())
   const [returnPhase, setReturnPhase] = useState<Phase>('setup')
   const [decoyTaps, setDecoyTaps] = useState(0)
+  const [ageConfirmed, setAgeConfirmed] = useState(false)
+  const [rulesConfirmed, setRulesConfirmed] = useState(false)
+  const [aiThinking, setAiThinking] = useState(false)
+  const [sceneCatalog, setSceneCatalog] = useState(DEFAULT_SCENES)
+  const [savedSessionAvailable, setSavedSessionAvailable] = useState(false)
+  const [back, setBack] = useState<Phase>('age')
+  const [media, setMedia] = useState<{ url: string; kind: 'image' | 'video'; blob: Blob } | null>(null)
+  const aiRequestRef = useRef<AbortController | null>(null)
+  const logEndRef = useRef<HTMLDivElement>(null)
+  const savedMediaBlobRef = useRef<Blob | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(
+    () =>
+      observeAccount((next) => {
+        setAccount(next)
+        if (next) {
+          setProfile((current) => ({
+            ...current,
+            plan: next.plan,
+            imagesLeft: next.imagesLeft,
+          }))
+        }
+      }),
+    [],
+  )
+
+  useEffect(() => {
+    if (!account) return
+    return observeScenes(setSceneCatalog)
+  }, [account])
+
+  useEffect(() => {
+    if (!account) return
+    return observeChatName(account.id, (chatName) => {
+      setProfile((current) => current.chatName === chatName ? current : { ...current, chatName })
+    })
+  }, [account])
+
+  useEffect(() => {
+    if (!account) return
+    const privacyMode = loadPrivacyMode(account.id)
+    void hasDeviceSession(account.id).then((available) => {
+      setSavedSessionAvailable(available)
+      setProfile((current) => current.privacyMode === privacyMode ? current : { ...current, privacyMode })
+    })
+  }, [account])
+
+  useEffect(() => {
+    if (!account || profile.privacyMode !== 'device' || (phase !== 'session' && phase !== 'aftercare')) return
+    const timer = window.setTimeout(() => {
+      const blob = media?.blob ?? savedMediaBlobRef.current
+      void saveDeviceSession(account.id, {
+        profile,
+        lines,
+        near,
+        cycle,
+        running,
+        savedAt: new Date().toISOString(),
+        ...(blob ? { media: { kind: media?.kind || (blob.type.startsWith('video/') ? 'video' : 'image'), blob } } : {}),
+      }).then(() => setSavedSessionAvailable(true))
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [account, cycle, lines, media, near, phase, profile, running])
+
+  useEffect(() => {
+    if (phase !== 'session') return
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [aiThinking, lines, phase])
 
   function panic() {
+    aiRequestRef.current?.abort()
+    setAiThinking(false)
     setReturnPhase(phase === 'decoy' ? returnPhase : phase)
     setDraft('')
     setPhase('decoy')
     setDecoyTaps(0)
   }
-  const [back, setBack] = useState<Phase>('age')
-  const [media, setMedia] = useState<{ url: string; kind: 'image' | 'video' } | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
-
   function dropMedia() {
     if (media) URL.revokeObjectURL(media.url)
     setMedia(null)
+    if (profile.privacyMode === 'private') savedMediaBlobRef.current = null
+  }
+
+  function choosePrivacyMode(mode: PrivacyMode) {
+    setProfile((current) => ({ ...current, privacyMode: mode }))
+    if (!account) return
+    savePrivacyMode(account.id, mode)
+    if (mode === 'private') {
+      savedMediaBlobRef.current = null
+      void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
+    }
+  }
+
+  async function resumeSavedSession() {
+    if (!account) return
+    const saved = await loadDeviceSession(account.id)
+    if (!saved) {
+      setSavedSessionAvailable(false)
+      return
+    }
+    dropMedia()
+    const fallback = emptyProfile()
+    setProfile({
+      ...fallback,
+      ...saved.profile,
+      privacyMode: 'device',
+      chatName: saved.profile.chatName || profile.chatName,
+      limits: { ...fallback.limits, ...saved.profile.limits },
+      plan: account.plan,
+      imagesLeft: account.imagesLeft,
+    })
+    setLines(saved.lines)
+    setNear(saved.near)
+    setCycle(saved.cycle)
+    setRunning(saved.running)
+    if (saved.media?.blob) {
+      savedMediaBlobRef.current = saved.media.blob
+      setMedia({
+        kind: saved.media.kind,
+        blob: saved.media.blob,
+        url: URL.createObjectURL(saved.media.blob),
+      })
+    } else {
+      savedMediaBlobRef.current = null
+    }
+    setPhase('session')
+  }
+
+  async function deleteSavedSession() {
+    if (!account) return
+    await clearDeviceSession(account.id)
+    savedMediaBlobRef.current = null
+    setSavedSessionAvailable(false)
   }
 
   function openRules(from: Phase) {
@@ -123,15 +272,28 @@ export default function App() {
   }
 
   function startSession() {
+    aiRequestRef.current?.abort()
+    setAiThinking(false)
     const fetishes = profile.fetishes.filter(
       (f) => profile.unlocked.includes(f) || FETISH_META[f].free,
     )
     const p = { ...profile, fetishes }
+    const scenes = availableScenes(sceneCatalog, p)
+    const scene = scenes.find((item) => item.id === p.sceneId) ?? scenes[0]
+    if (scene) p.sceneId = scene.id
     setProfile(p)
-    setLines([systemLine('Scene start'), aiLine(opening(p)), aiLine(onStart(p))])
+    if (account) void saveChatName(account.id, p.chatName).catch(() => undefined)
+    if (account && p.privacyMode === 'private') {
+      void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
+    }
+    setLines([
+      systemLine(scene ? scene.title : 'Scene start'),
+      aiLine(scene?.openingPrompt || 'Scenen er startet. Fortæl mig, hvad du ønsker.'),
+    ])
     setCycle(1)
     setNear('ok')
     setRunning(true)
+    savedMediaBlobRef.current = null
     dropMedia()
     setPhase('session')
   }
@@ -154,11 +316,14 @@ export default function App() {
     dropMedia()
     const url = URL.createObjectURL(file)
     const kind = video ? 'video' : 'image'
-    setMedia({ url, kind })
+    savedMediaBlobRef.current = file
+    setMedia({ url, kind, blob: file })
     push(youLine(kind === 'video' ? 'Viste et klip' : 'Viste et billede'), aiLine(onMedia(profile, kind)))
   }
 
   function tickSession(kind: 'close' | 'ok' | 'too' | 'deny' | 'finish' | 'safe') {
+    aiRequestRef.current?.abort()
+    setAiThinking(false)
     if (kind === 'safe') {
       setRunning(false)
       push(youLine(profile.limits.safeword), aiLine(onSafeword()), systemLine('Aftercare'))
@@ -196,9 +361,9 @@ export default function App() {
     setPhase('aftercare')
   }
 
-  function sendText() {
+  async function sendText() {
     const t = draft.trim()
-    if (!t) return
+    if (!t || aiThinking) return
     setDraft('')
     if (t.toLowerCase() === profile.limits.safeword.toLowerCase()) {
       tickSession('safe')
@@ -208,7 +373,26 @@ export default function App() {
       push(youLine(t), aiLine(BLOCKED_REPLY))
       return
     }
-    push(youLine(t), aiLine(replyToText(profile, t, near)))
+    if (!aiIsConfigured()) {
+      push(youLine(t), aiLine(replyToText(profile, t, near)))
+      return
+    }
+
+    const controller = new AbortController()
+    aiRequestRef.current = controller
+    setAiThinking(true)
+    push(youLine(t))
+    try {
+      const reply = await askAi({ profile, near, cycle, lines, text: t, signal: controller.signal })
+      push(aiLine(reply))
+    } catch (error) {
+      if (controller.signal.aborted) return
+      const message = error instanceof Error ? error.message : 'Ukendt AI-fejl'
+      push(systemLine(`AI kunne ikke svare: ${message}`), aiLine(replyToText(profile, t, near)))
+    } finally {
+      if (aiRequestRef.current === controller) aiRequestRef.current = null
+      setAiThinking(false)
+    }
   }
 
   function unlock(id: FetishId) {
@@ -237,6 +421,15 @@ export default function App() {
         },
       }
     })
+  }
+
+  function toggleEquipment(id: EquipmentId) {
+    setProfile((current) => ({
+      ...current,
+      equipment: current.equipment.includes(id)
+        ? current.equipment.filter((item) => item !== id)
+        : [...current.equipment, id],
+    }))
   }
 
   if (phase === 'login') {
@@ -276,7 +469,7 @@ export default function App() {
       <main className="shell">
         <p className="kicker">Stay · regler</p>
         <h1>Forbudt og tilladt</h1>
-        <p className="hint">Den her side er den, I kan pege på over for stores og betaling.</p>
+        <p className="hint">Reglerne gælder for alle brugere og alle scener i Stay.</p>
         {POLICY_SECTIONS.map((s) => (
           <section key={s.title} className="sheet" style={{ marginTop: '0.75rem' }}>
             <h2 style={{ marginTop: 0 }}>{s.title}</h2>
@@ -314,8 +507,26 @@ export default function App() {
     return (
       <main className="shell">
         <p className="kicker">Stay</p>
-        <h1>Kun 18+</h1>
-        <p className="lede">{POLICY_TEXT}</p>
+        <h1>Velkommen til Stay</h1>
+        <p className="lede">Stay er kun for voksne. Bekræft begge punkter for at fortsætte.</p>
+        <div className="consent-card">
+          <label className="consent-check">
+            <input
+              type="checkbox"
+              checked={ageConfirmed}
+              onChange={(e) => setAgeConfirmed(e.target.checked)}
+            />
+            <span>Jeg bekræfter, at jeg er fyldt 18 år.</span>
+          </label>
+          <label className="consent-check">
+            <input
+              type="checkbox"
+              checked={rulesConfirmed}
+              onChange={(e) => setRulesConfirmed(e.target.checked)}
+            />
+            <span>Jeg har læst og accepterer reglerne.</span>
+          </label>
+        </div>
         {!isStandalone() && (
           <p className="hint">
             PWA: i telefonens browser — Del / menu → “Føj til hjemmeskærm”. Derefter åbner den som en app.
@@ -324,10 +535,14 @@ export default function App() {
         )}
         <div className="row">
           <button className="ghost" onClick={() => openRules('age')}>
-            Fuld regelside
+            Læs reglerne
           </button>
-          <button className="primary" onClick={() => setPhase('login')}>
-            Jeg er 18+ og accepterer reglerne
+          <button
+            className="primary"
+            disabled={!ageConfirmed || !rulesConfirmed}
+            onClick={() => setPhase('login')}
+          >
+            Fortsæt
           </button>
         </div>
       </main>
@@ -401,6 +616,8 @@ export default function App() {
   }
 
   if (phase === 'setup') {
+    const scenes = availableScenes(sceneCatalog, profile)
+    const selectedScene = scenes.find((scene) => scene.id === profile.sceneId) ?? scenes[0]
     return (
       <main className="shell">
         <p className="kicker">Opsætning {account ? `· ${account.email}` : ''}</p>
@@ -427,7 +644,82 @@ export default function App() {
             Log ud
           </button>
         </div>
-        <h1>Hvem er du i scenen?</h1>
+        <h1>Hvad har du lyst til?</h1>
+
+        <label className="field chat-name-field">
+          Dit chatnavn
+          <input
+            value={profile.chatName}
+            maxLength={32}
+            autoComplete="nickname"
+            placeholder="Hvad skal din AI-partner kalde dig?"
+            onChange={(e) => setProfile({ ...profile, chatName: e.target.value })}
+            onBlur={() => {
+              if (account) void saveChatName(account.id, profile.chatName).catch(() => undefined)
+            }}
+          />
+          <span>Navnet gemmes på din profil og kan bruges naturligt i chatten.</span>
+        </label>
+
+        <section className="privacy-choice" aria-labelledby="privacy-title">
+          <div>
+            <h2 id="privacy-title">Skal samtalen gemmes?</h2>
+            <p className="hint">Du kan ændre valget før hver ny scene.</p>
+          </div>
+          <label className={profile.privacyMode === 'private' ? 'privacy-option on' : 'privacy-option'}>
+            <input
+              type="radio"
+              name="privacy-mode"
+              checked={profile.privacyMode === 'private'}
+              onChange={() => choosePrivacyMode('private')}
+            />
+            <span>
+              <strong>Privat session</strong>
+              <small>Gemmes ikke i appen. Chat og midlertidige billeder forsvinder, når sessionen forlades.</small>
+            </span>
+          </label>
+          <label className={profile.privacyMode === 'device' ? 'privacy-option on' : 'privacy-option'}>
+            <input
+              type="radio"
+              name="privacy-mode"
+              checked={profile.privacyMode === 'device'}
+              onChange={() => choosePrivacyMode('device')}
+            />
+            <span>
+              <strong>Gem på denne enhed</strong>
+              <small>Chat og lokale billeder gemmes i denne browser — ikke i Stay-skyen.</small>
+            </span>
+          </label>
+          <p className="privacy-note">Beskeder sendes stadig til AI-tjenesten for at kunne blive besvaret. Valget styrer lagring i Stay.</p>
+          {savedSessionAvailable && profile.privacyMode === 'device' && (
+            <div className="saved-session-actions">
+              <button className="primary" type="button" onClick={() => void resumeSavedSession()}>
+                Fortsæt gemt chat
+              </button>
+              <button className="ghost" type="button" onClick={() => void deleteSavedSession()}>
+                Slet gemt chat
+              </button>
+            </div>
+          )}
+        </section>
+
+        <div className="scene-grid">
+          {scenes.map((scene) => (
+            <button
+              key={scene.id}
+              className={selectedScene?.id === scene.id ? 'scene-card on' : 'scene-card'}
+              onClick={() => setProfile({ ...profile, sceneId: scene.id })}
+            >
+              <strong>{scene.title}</strong>
+              <span>{scene.blurb}</span>
+            </button>
+          ))}
+        </div>
+        <p className="hint">
+          Ekstra ønsker vises automatisk, når den tilhørende pakke er valgt og låst op.
+        </p>
+
+        <h2>Hvem er du i scenen?</h2>
 
         <div className="row">
           {(['slave', 'domme'] as Role[]).map((r) => (
@@ -553,7 +845,8 @@ export default function App() {
           </>
         )}
 
-        <h2>Personlighed</h2>
+        <h2>Hvordan skal AI-partneren være?</h2>
+        <p className="hint">Vælg en grundstil, eller skriv dit eget ønske nedenunder.</p>
         <div className="row">
           {(['warm', 'cold', 'tease', 'strict'] as Personality[]).map((p) => (
             <button
@@ -561,10 +854,21 @@ export default function App() {
               className={profile.personality === p ? 'chip on' : 'chip'}
               onClick={() => setProfile({ ...profile, personality: p })}
             >
-              {p === 'warm' ? 'Varm' : p === 'cold' ? 'Kold' : p === 'tease' ? 'Drilsk' : 'Streng'}
+              {p === 'warm' ? 'Blid' : p === 'cold' ? 'Kold' : p === 'tease' ? 'Drilsk' : 'Dominerende'}
             </button>
           ))}
         </div>
+        <label className="field custom-wish-field">
+          Eget ønske til samtalen
+          <textarea
+            value={profile.customWish}
+            maxLength={300}
+            rows={3}
+            placeholder="Fx: Vær rolig i starten, men mere bestemt undervejs. Brug mit chatnavn en gang imellem."
+            onChange={(e) => setProfile({ ...profile, customWish: e.target.value })}
+          />
+          <span>{profile.customWish.trim() ? 'Dit eget ønske bruges i stedet for grundstilen.' : 'Valgfrit · højst 300 tegn'}</span>
+        </label>
 
         <h2>Intensitet</h2>
         <div className="row">
@@ -579,6 +883,33 @@ export default function App() {
           ))}
         </div>
         <p className="hint">{intensityHint(profile.intensity)}</p>
+
+        <h2>Udstyr til rådighed</h2>
+        <p className="hint">Vælg kun det, du faktisk har. AI-partneren tilpasser scenen efter listen.</p>
+        <div className="equipment-grid">
+          {EQUIPMENT.map((item) => (
+            <label
+              key={item.id}
+              className={profile.equipment.includes(item.id) ? 'equipment-option on' : 'equipment-option'}
+            >
+              <input
+                type="checkbox"
+                checked={profile.equipment.includes(item.id)}
+                onChange={() => toggleEquipment(item.id)}
+              />
+              <span>{item.title}</span>
+            </label>
+          ))}
+        </div>
+        <label className="field">
+          Andet udstyr
+          <input
+            value={profile.customEquipment}
+            maxLength={160}
+            placeholder="Skriv andet udstyr, adskilt med komma"
+            onChange={(e) => setProfile({ ...profile, customEquipment: e.target.value })}
+          />
+        </label>
 
         <h2>Fetish</h2>
         <div className="grid">
@@ -699,86 +1030,113 @@ export default function App() {
     )
   }
 
+  const activeScene = sceneCatalog.find((scene) => scene.id === profile.sceneId)
+  const partnerName = profile.figure === 'mistress' ? 'Mistress' : 'Master'
+  const userChatName = profile.chatName.trim() || 'Dig'
+
   return (
     <main className="shell session" data-running={running}>
-      <header className="top">
-        <span>
-          {profile.role === 'domme' ? 'Domme' : 'Slave'} · {profile.nsfw ? 'NSFW' : 'SFW'} · cyklus {cycle}
-        </span>
-        <span className="row">
-          <button
-            className={profile.nsfw ? 'chip on' : 'ghost'}
-            onClick={() =>
-              setProfile({
-                ...profile,
-                nsfw: !profile.nsfw,
-                look: !profile.nsfw ? 'nsfw' : 'clothed',
-              })
-            }
-          >
-            {profile.nsfw ? 'NSFW on' : 'NSFW off'}
-          </button>
-          <button className="ghost" onClick={panic}>
-            Noter
-          </button>
-          <button className="ghost" onClick={() => openRules('session')}>
-            Regler
-          </button>
+      <header className="partner-card">
+        <div className={profile.partnerImageUrl ? 'partner-portrait' : 'partner-portrait empty'}>
+          {profile.partnerImageUrl ? (
+            <img src={profile.partnerImageUrl} alt={`AI-partneren ${partnerName}`} />
+          ) : (
+            <span aria-label="Partnerbillede er ikke oprettet endnu">{partnerName.slice(0, 1)}</span>
+          )}
+        </div>
+        <div className="partner-details">
+          <span className="partner-status"><i /> AI-partner</span>
+          <strong>{partnerName}</strong>
+          <small>{activeScene?.title || 'Privat chat'} · {profile.nsfw ? 'NSFW' : 'SFW'} · cyklus {cycle}</small>
+          <small className="privacy-status">
+            {profile.privacyMode === 'private' ? 'Privat · gemmes ikke' : 'Gemmes kun på denne enhed'}
+          </small>
+          {!profile.partnerImageUrl && <small className="portrait-empty-text">Billede ikke oprettet endnu</small>}
+        </div>
+        <div className="chat-tools">
+          <button className="note-button" onClick={panic}>Noter</button>
           <button className="safe" onClick={() => tickSession('safe')}>
             {profile.limits.safeword}
           </button>
-        </span>
+        </div>
       </header>
 
-      <div className="log">
-        {lines.map((l) => (
-          <p key={l.id} className={l.from}>
-            {l.text}
-          </p>
+      <div className="log chat-log" aria-live="polite">
+        {lines.map((line) => line.from === 'system' ? (
+          <div key={line.id} className="system-message"><span>{line.text}</span></div>
+        ) : (
+          <div key={line.id} className={`message ${line.from}`}>
+            <span className="message-name">{line.from === 'ai' ? partnerName : userChatName}</span>
+            <p>{line.text}</p>
+          </div>
         ))}
+        {aiThinking && (
+          <div className="message ai thinking">
+            <span className="message-name">{partnerName}</span>
+            <p><i /><i /><i /><span className="sr-only">Skriver…</span></p>
+          </div>
+        )}
+
+        {media && (
+          <div className="preview chat-media">
+            {media.kind === 'video' ? (
+              <video src={media.url} controls playsInline />
+            ) : (
+              <img src={media.url} alt="Dit valgte medie" />
+            )}
+            <div className="preview-footer">
+              <span>Kun på din telefon · ingen upload</span>
+              <button type="button" onClick={dropMedia}>Skjul</button>
+            </div>
+          </div>
+        )}
+        <div ref={logEndRef} />
       </div>
 
-      {media && (
-        <div className="preview">
-          {media.kind === 'video' ? (
-            <video src={media.url} controls playsInline />
-          ) : (
-            <img src={media.url} alt="" />
-          )}
-          <button className="ghost" type="button" onClick={dropMedia}>
-            Skjul
-          </button>
-          <p className="hint">Kun på din telefon. Sendes ikke nogen steder.</p>
+      <div className="chat-bottom">
+        <div className="session-actions" aria-label="Hurtige scenevalg">
+          <button onClick={() => tickSession('close')}>Tæt på</button>
+          <button onClick={() => tickSession('ok')}>Igen</button>
+          <button onClick={() => tickSession('too')}>For meget</button>
+          <button onClick={() => tickSession('deny')}>Nægt</button>
+          <button className="finish" onClick={() => tickSession('finish')}>Finish</button>
         </div>
-      )}
 
-      <div className="big">
-        <button onClick={() => tickSession('close')}>Tæt på</button>
-        <button onClick={() => tickSession('ok')}>Igen</button>
-        <button onClick={() => tickSession('too')}>For meget</button>
-        <button onClick={() => tickSession('deny')}>Nægt</button>
-        <button className="finish" onClick={() => tickSession('finish')}>
-          Tillad finish
-        </button>
+        <form
+          className="composer"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void sendText()
+          }}
+        >
+          <button
+            type="button"
+            className="attach-button"
+            aria-label="Vælg et lokalt billede eller videoklip"
+            onClick={() => fileRef.current?.click()}
+          >
+            +
+          </button>
+          <textarea
+            rows={1}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void sendText()
+              }
+            }}
+            placeholder={`Skriv til ${partnerName}…`}
+            aria-label={`Skriv en besked til ${partnerName}`}
+            disabled={aiThinking}
+          />
+          <button className="send-button" type="submit" disabled={aiThinking || !draft.trim()}>
+            {aiThinking ? '···' : 'Send'}
+          </button>
+        </form>
+        <p className="chat-caption">{aiIsConfigured() ? 'AI-chat aktiv' : 'Demo-svar'} · Billeder fra + bliver på din telefon</p>
       </div>
-
-      <form
-        className="talk"
-        onSubmit={(e) => {
-          e.preventDefault()
-          sendText()
-        }}
-      >
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Skriv til personen…"
-        />
-        <button type="button" className="ghost" onClick={() => fileRef.current?.click()}>
-          Vis
-        </button>
-        <button type="submit">Send</button>
-      </form>
       <input
         ref={fileRef}
         type="file"
@@ -790,7 +1148,6 @@ export default function App() {
           if (file) attachMedia(file)
         }}
       />
-      <p className="hint">Vis = lokalt billede eller klip. Ingen upload.</p>
     </main>
   )
 }

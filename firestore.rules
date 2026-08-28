@@ -1,0 +1,29 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedInAndVerified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isStayAdmin() {
+      return signedInAndVerified()
+        && request.auth.token.email == 'teamstayapp@gmail.com';
+    }
+
+    match /scenePresets/{sceneId} {
+      allow read: if signedInAndVerified();
+      allow create, update, delete: if isStayAdmin();
+    }
+
+    match /userProfiles/{userId} {
+      allow read, create, update: if signedInAndVerified()
+        && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

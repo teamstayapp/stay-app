@@ -1,4 +1,11 @@
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth'
 import type { PlanId } from './plans'
 import { firebaseReady, getFirebaseAuth } from './firebase'
 
@@ -16,7 +23,13 @@ export interface Account {
   lastSeen: string
   cancelledAt?: string
   imagesLeft: number
+  emailVerified?: boolean
 }
+
+export type AuthResult =
+  | { ok: true; account: Account }
+  | { ok: true; notice: string }
+  | { ok: false; error: string }
 
 const USERS_KEY = 'stay.users'
 const SESSION_KEY = 'stay.session'
@@ -105,6 +118,8 @@ export function login(email: string, password: string): Account | string {
 }
 
 export function logout() {
+  const auth = getFirebaseAuth()
+  if (auth) void signOut(auth)
   setSession(null)
 }
 
@@ -129,11 +144,12 @@ export function touch(id: string) {
   saveAccounts(loadAccounts().map((a) => (a.id === id ? { ...a, lastSeen: new Date().toISOString() } : a)))
 }
 
-function fromFirebase(email: string, uid: string): Account {
+function fromFirebase(email: string, uid: string, emailVerified: boolean): Account {
   const list = loadAccounts()
   const hit = list.find((a) => a.email === email)
+  const role = email === (import.meta.env.VITE_ADMIN_EMAIL as string | undefined)?.trim().toLowerCase() ? 'admin' : 'user'
   if (hit) {
-    const next = { ...hit, id: uid, lastSeen: new Date().toISOString() }
+    const next: Account = { ...hit, id: uid, role, emailVerified, lastSeen: new Date().toISOString() }
     saveAccounts(list.map((a) => (a.email === email ? next : a)))
     setSession(uid)
     return next
@@ -142,42 +158,99 @@ function fromFirebase(email: string, uid: string): Account {
     id: uid,
     email,
     password: '',
-    role: email === 'admin@stay.local' ? 'admin' : 'user',
+    role,
     plan: 'free',
     status: 'active',
     createdAt: new Date().toISOString(),
     lastSeen: new Date().toISOString(),
     imagesLeft: 2,
+    emailVerified,
   }
   saveAccounts([...list, acc])
   setSession(uid)
   return acc
 }
 
-export async function loginAsync(email: string, password: string): Promise<Account | string> {
+export async function loginAsync(email: string, password: string): Promise<AuthResult> {
   if (firebaseReady()) {
     const auth = getFirebaseAuth()
-    if (!auth) return 'Firebase ikke klar.'
+    if (!auth) return { ok: false, error: 'Firebase er ikke klar.' }
     try {
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password)
-      return fromFirebase(email.trim().toLowerCase(), cred.user.uid)
-    } catch {
-      return 'Forkert email eller kode.'
+      if (!cred.user.emailVerified) {
+        await sendEmailVerification(cred.user).catch(() => undefined)
+        await signOut(auth)
+        setSession(null)
+        return { ok: true, notice: 'Bekræft din e-mail via linket, vi har sendt, og log derefter ind.' }
+      }
+      return { ok: true, account: fromFirebase(email.trim().toLowerCase(), cred.user.uid, true) }
+    } catch (error) {
+      return { ok: false, error: authError(error, 'Kunne ikke logge ind.') }
     }
   }
-  return login(email, password)
+  const result = login(email, password)
+  return typeof result === 'string' ? { ok: false, error: result } : { ok: true, account: result }
 }
 
-export async function registerAsync(email: string, password: string): Promise<Account | string> {
+export async function registerAsync(email: string, password: string): Promise<AuthResult> {
+  if (password.length < 8) return { ok: false, error: 'Adgangskoden skal være på mindst 8 tegn.' }
   if (firebaseReady()) {
     const auth = getFirebaseAuth()
-    if (!auth) return 'Firebase ikke klar.'
+    if (!auth) return { ok: false, error: 'Firebase er ikke klar.' }
     try {
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
-      return fromFirebase(email.trim().toLowerCase(), cred.user.uid)
-    } catch {
-      return 'Kunne ikke oprette. Email optaget eller for svag kode.'
+      await sendEmailVerification(cred.user).catch(() => undefined)
+      await signOut(auth)
+      setSession(null)
+      return { ok: true, notice: 'Kontoen er oprettet. Bekræft din e-mail via linket, vi har sendt.' }
+    } catch (error) {
+      return { ok: false, error: authError(error, 'Kunne ikke oprette kontoen.') }
     }
   }
-  return register(email, password)
+  const result = register(email, password)
+  return typeof result === 'string' ? { ok: false, error: result } : { ok: true, account: result }
+}
+
+export async function requestPasswordReset(email: string): Promise<string> {
+  const value = email.trim().toLowerCase()
+  if (!value.includes('@')) return 'Indtast din e-mailadresse først.'
+  if (!firebaseReady()) return 'Nulstilling virker, når Firebase er slået til.'
+  const auth = getFirebaseAuth()
+  if (!auth) return 'Firebase er ikke klar.'
+  try {
+    await sendPasswordResetEmail(auth, value)
+    return 'Hvis adressen findes, er der sendt et link til at vælge en ny adgangskode.'
+  } catch {
+    return 'Hvis adressen findes, er der sendt et link til at vælge en ny adgangskode.'
+  }
+}
+
+export function observeAccount(callback: (account: Account | null) => void): () => void {
+  if (!firebaseReady()) {
+    callback(currentAccount())
+    return () => undefined
+  }
+  const auth = getFirebaseAuth()
+  if (!auth) return () => undefined
+  return onAuthStateChanged(auth, (user) => {
+    if (!user?.email) {
+      setSession(null)
+      callback(null)
+      return
+    }
+    callback(fromFirebase(user.email.toLowerCase(), user.uid, user.emailVerified))
+  })
+}
+
+function authError(error: unknown, fallback: string): string {
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
+  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
+    return 'Forkert e-mail eller adgangskode.'
+  }
+  if (code.includes('email-already-in-use')) return 'Der findes allerede en konto med den e-mail.'
+  if (code.includes('invalid-email')) return 'E-mailadressen er ikke gyldig.'
+  if (code.includes('weak-password')) return 'Adgangskoden er for svag.'
+  if (code.includes('too-many-requests')) return 'For mange forsøg. Vent lidt og prøv igen.'
+  if (code.includes('network-request-failed')) return 'Ingen forbindelse til login-serveren.'
+  return fallback
 }
