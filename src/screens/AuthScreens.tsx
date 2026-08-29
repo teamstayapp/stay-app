@@ -191,7 +191,9 @@ export function LoginScreen({
 }
 
 export function AdminScreen({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<'kunder' | 'tal' | 'forbrug' | 'prompts' | 'indhold'>('kunder')
+  type AdminTab = 'kunder' | 'tal' | 'forbrug' | 'prompts' | 'indhold' | 'indstillinger'
+  const [tab, setTab] = useState<AdminTab>('tal')
+  const [menuOpen, setMenuOpen] = useState(false)
   const [, setTick] = useState(0)
   const [scenes, setScenes] = useState(DEFAULT_SCENES)
   const [selectedSceneId, setSelectedSceneId] = useState(DEFAULT_SCENES[0]?.id ?? '')
@@ -232,6 +234,19 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
   useEffect(() => observePurchaseRequests(setPurchaseRequests), [])
   useEffect(() => observeContentCatalog(setContentCatalog), [])
   useEffect(() => observeCustomerAccounts(setCustomers), [])
+  useEffect(() => {
+    function closeMenu(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('keydown', closeMenu)
+    return () => window.removeEventListener('keydown', closeMenu)
+  }, [])
+
+  function openSection(next: AdminTab) {
+    setTab(next)
+    setMenuOpen(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   function refresh() {
     setTick((n) => n + 1)
@@ -346,58 +361,74 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <main className="shell-wide">
-      <p className="kicker">Stay admin · PC</p>
-      <h1>Kontrolpanel</h1>
-      <p className="hint">Egen side. Bruger-appen er et andet spor — telefon eller browser.</p>
-      <div className="row admin-nav">
-        <button className={tab === 'kunder' ? 'chip on' : 'chip'} onClick={() => setTab('kunder')}>
-          Kunder
-        </button>
-        <button className={tab === 'tal' ? 'chip on' : 'chip'} onClick={() => setTab('tal')}>
-          Tal
-        </button>
-        <button className={tab === 'forbrug' ? 'chip on' : 'chip'} onClick={() => setTab('forbrug')}>
-          AI-forbrug
-        </button>
-        <button className={tab === 'prompts' ? 'chip on' : 'chip'} onClick={() => setTab('prompts')}>
-          Prompts
-        </button>
-        <button className={tab === 'indhold' ? 'chip on' : 'chip'} onClick={() => setTab('indhold')}>
-          Indhold
-        </button>
-        <button className="ghost" onClick={onBack}>
-          Åbn bruger-app
-        </button>
+    <main className="shell-wide admin-shell">
+      <header className="admin-topbar">
         <button
-          className="ghost"
-          onClick={() => {
-            logout()
-            onBack()
-          }}
+          type="button"
+          className="admin-menu-toggle"
+          aria-expanded={menuOpen}
+          aria-controls="stay-admin-menu"
+          onClick={() => setMenuOpen((open) => !open)}
         >
-          Log ud
+          <span aria-hidden="true">☰</span>
+          Menu
         </button>
-      </div>
+        <div>
+          <p className="kicker">Stay admin</p>
+          <h1>Kontrolpanel</h1>
+          <p className="hint">Vælg et område i sidemenuen. Ændringer udgives centralt til hele appen.</p>
+        </div>
+      </header>
 
-      <div className="stats">
-        <div className="stat">
-          <b>{active.length}</b>
-          aktive
+      {menuOpen && (
+        <button
+          type="button"
+          className="admin-menu-backdrop"
+          aria-label="Luk administratormenu"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+      <aside id="stay-admin-menu" className={menuOpen ? 'admin-sidebar open' : 'admin-sidebar'} aria-hidden={!menuOpen}>
+        <div className="admin-sidebar-head">
+          <div>
+            <p className="kicker">Stay</p>
+            <strong>Administration</strong>
+          </div>
+          <button type="button" aria-label="Luk menu" onClick={() => setMenuOpen(false)}>×</button>
         </div>
-        <div className="stat">
-          <b>{gone.length}</b>
-          afgang
+        <nav className="admin-side-nav" aria-label="Administrationsområder">
+          <button className={tab === 'tal' ? 'active' : ''} onClick={() => openSection('tal')}>
+            <span>Overblik</span><small>Tal og drift</small>
+          </button>
+          <button className={tab === 'kunder' ? 'active' : ''} onClick={() => openSection('kunder')}>
+            <span>Kunder</span><small>Plan, saldo og status</small>
+          </button>
+          <button className={tab === 'prompts' ? 'active' : ''} onClick={() => openSection('prompts')}>
+            <span>AI &amp; prompts</span><small>Tekst- og billedmodeller</small>
+          </button>
+          <button className={tab === 'forbrug' ? 'active' : ''} onClick={() => openSection('forbrug')}>
+            <span>Priser &amp; grænser</span><small>Kvoter, køb og forbrug</small>
+          </button>
+          <button className={tab === 'indhold' ? 'active' : ''} onClick={() => openSection('indhold')}>
+            <span>Indhold</span><small>Udstyr og temaer</small>
+          </button>
+          <button className={tab === 'indstillinger' ? 'active' : ''} onClick={() => openSection('indstillinger')}>
+            <span>Indstillinger</span><small>Forbindelse og konto</small>
+          </button>
+        </nav>
+        <div className="admin-sidebar-footer">
+          <button className="ghost" onClick={onBack}>Åbn bruger-app</button>
+          <button
+            className="ghost"
+            onClick={() => {
+              logout()
+              onBack()
+            }}
+          >
+            Log ud
+          </button>
         </div>
-        <div className="stat">
-          <b>{mrr} kr</b>
-          MRR mock
-        </div>
-        <div className="stat">
-          <b>{list.length}</b>
-          konti
-        </div>
-      </div>
+      </aside>
 
       {tab === 'kunder' && (
         <div>
@@ -489,15 +520,23 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
       )}
 
       {tab === 'tal' && (
-        <section className="sheet">
-          <h2>Afgang</h2>
-          <p className="lede">
-            Opsagt er et aktivt stop. Churn er udebleven fornyelse. Senere fyldes det fra betalings-webhook.
-          </p>
-          <p className="hint">
-            Mock MRR tæller kun aktive planer til listepris. Gebyr og Venice-kost er ikke trukket fra.
-          </p>
-        </section>
+        <div>
+          <div className="stats">
+            <div className="stat"><b>{active.length}</b>aktive</div>
+            <div className="stat"><b>{gone.length}</b>afgang</div>
+            <div className="stat"><b>{mrr} kr</b>MRR mock</div>
+            <div className="stat"><b>{list.length}</b>konti</div>
+          </div>
+          <section className="sheet">
+            <h2>Afgang</h2>
+            <p className="lede">
+              Opsagt er et aktivt stop. Churn er udebleven fornyelse. Senere fyldes det fra betalings-webhook.
+            </p>
+            <p className="hint">
+              Mock MRR tæller kun aktive planer til listepris. Gebyr og Venice-kost er ikke trukket fra.
+            </p>
+          </section>
+        </div>
       )}
 
       {tab === 'forbrug' && (
@@ -945,6 +984,38 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 </article>
               ))}
             </div>
+          </div>
+        </section>
+      )}
+
+      {tab === 'indstillinger' && (
+        <section className="sheet admin-settings">
+          <p className="kicker">System</p>
+          <h2>Indstillinger</h2>
+          <div className="admin-settings-grid">
+            <article>
+              <span>Database</span>
+              <strong>{firebaseReady() ? 'Firestore forbundet' : 'Lokal demo-tilstand'}</strong>
+            </article>
+            <article>
+              <span>Administratorkonto</span>
+              <strong>{currentAccount()?.email || 'Ikke logget ind'}</strong>
+            </article>
+          </div>
+          <p className="hint">
+            Firebase-, Cloudflare- og Venice-nøgler ændres fortsat i deres sikre miljøindstillinger og vises ikke i appen.
+          </p>
+          <div className="row">
+            <button className="primary" onClick={onBack}>Åbn bruger-app</button>
+            <button
+              className="ghost"
+              onClick={() => {
+                logout()
+                onBack()
+              }}
+            >
+              Log ud
+            </button>
           </div>
         </section>
       )}

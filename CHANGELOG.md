@@ -2,6 +2,43 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 29. august 2026 — foldeliste, adminmenu og valgfri panikdestination
+
+- Udstyrslisten i opsætningen kan nu åbnes og lukkes med ét tryk og viser antal
+  valgte felter, mens den er foldet sammen.
+- Admin har fået en mobilvenlig sidemenu med Overblik, Kunder, AI & prompts,
+  Priser & grænser, Indhold og Indstillinger.
+- Sidemenuen kan åbnes og lukkes fra alle adminområder, lukkes med Escape eller
+  ved tryk uden for menuen og fremhæver det aktive område.
+- Panikknappen kan indstilles til Stay-noter, vejr, kalender eller et selvvalgt
+  app-/web-link.
+- Ved lokal enhedslagring gemmer panikknappen den aktive scene direkte, før den
+  skifter væk. Private sessioner gemmes fortsat ikke.
+- Stay skjules straks som “Noter”, mens et eksternt app-link åbnes. Usikre
+  `javascript:`, `data:` og `file:`-links afvises.
+
+## 29. august 2026 — faste kropskort til berøring
+
+- **Rør krop** bruger nu et fast kropskort i stedet for et varierende
+  AI-partnerbillede, så trykzonerne sidder mere præcist.
+- Der er særskilte kort til Master og Mistress, både forfra og bagfra.
+- Mund, hals/nakke, bryst, mave, skød, hånd, lår og bagdel er tilpasset de nye
+  kort, mens AI-reaktioner, planer, NSFW, temaer og safeword er uændrede.
+- Det genererede 2:3-partnerbillede vises fortsat stort i opsætningen og som
+  partnerens billede i chatten.
+
+## 29. august 2026 — større helfigurbilleder
+
+- Partnerbilleder genereres nu lodret i 2:3-format via Venices native billed-API.
+- Billedprompten kræver én tydeligt voksen figur fra hoved til fødder og modvirker
+  nærbilleder, beskæring, sorte felter og utydelig belysning.
+- Hvert nyt billede får en tilfældig seed, så gentagne tryk giver en reel variation.
+- Appens partnerfelt er gjort markant større og bruger `contain`, så hele billedet
+  vises uden yderligere beskæring.
+- Den interaktive kropsvisning er også større og følger det lodrette 2:3-format.
+- Tomme, beskadigede eller næsten sorte billedsvar afvises i appen; et allerede
+  fungerende partnerbillede bliver derfor stående.
+
 ## 28. august 2026 — Tæt på, Jeg kommer og billedfavorit
 
 - Brugeren kan vælge penis eller vulva som egen anatomi uden, at appen antager

@@ -3,12 +3,227 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedInAndVerified() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true;
     }
 
     function isStayAdmin() {
       return signedInAndVerified()
         && request.auth.token.email == 'teamstayapp@gmail.com';
+    }
+
+    function isOwner(userId) {
+      return signedInAndVerified() && request.auth.uid == userId;
+    }
+
+    function validProfileCreate(userId) {
+      return isOwner(userId)
+        && request.resource.data.keys().hasAll([
+          'email', 'chatName', 'createdAt', 'lastSeen'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'email', 'chatName', 'createdAt', 'lastSeen'
+        ])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.chatName is string
+        && request.resource.data.chatName.size() <= 32
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.lastSeen is timestamp;
+    }
+
+    function validProfileUpdate(userId) {
+      return isOwner(userId)
+        && request.resource.data.keys().hasAll(['email', 'lastSeen'])
+        && request.resource.data.keys().hasOnly([
+          'email', 'chatName', 'createdAt', 'lastSeen'
+        ])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.get('chatName', '') is string
+        && request.resource.data.get('chatName', '').size() <= 32
+        && request.resource.data.get('createdAt', null)
+          == resource.data.get('createdAt', null)
+        && request.resource.data.lastSeen is timestamp
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['email', 'chatName', 'lastSeen']);
+    }
+
+    function validFreeEntitlementCreate(userId) {
+      return isOwner(userId)
+        && request.resource.data.keys().hasAll([
+          'plan',
+          'status',
+          'expiresAt',
+          'extraPacks',
+          'bonusPeriod',
+          'bonusImageGenerations',
+          'bonusImageAnalyses',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'plan',
+          'status',
+          'expiresAt',
+          'extraPacks',
+          'bonusPeriod',
+          'bonusImageGenerations',
+          'bonusImageAnalyses',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.plan == 'free'
+        && request.resource.data.status == 'active'
+        && request.resource.data.expiresAt == null
+        && request.resource.data.extraPacks == false
+        && request.resource.data.bonusPeriod is string
+        && request.resource.data.bonusPeriod.matches('[0-9]{4}-[0-9]{2}')
+        && request.resource.data.bonusImageGenerations == 0
+        && request.resource.data.bonusImageAnalyses == 0
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validDailyUsageShape(usageId) {
+      return signedInAndVerified()
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'email',
+          'day',
+          'chatCalls',
+          'imageGenerations',
+          'imageAnalyses',
+          'models'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'email',
+          'day',
+          'chatCalls',
+          'imageGenerations',
+          'imageAnalyses',
+          'models'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.day is string
+        && request.resource.data.day.matches('[0-9]{8}')
+        && usageId == request.auth.uid + '_' + request.resource.data.day
+        && request.resource.data.chatCalls is int
+        && request.resource.data.chatCalls >= 0
+        && request.resource.data.chatCalls <= 1000000
+        && request.resource.data.imageGenerations == 0
+        && request.resource.data.imageAnalyses == 0
+        && request.resource.data.models is map
+        && request.resource.data.models.size() == 0;
+    }
+
+    function validMonthlyUsageShape(usageId) {
+      return signedInAndVerified()
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'email',
+          'period',
+          'chatCalls',
+          'imageGenerations',
+          'imageAnalyses',
+          'models'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'email',
+          'period',
+          'chatCalls',
+          'imageGenerations',
+          'imageAnalyses',
+          'models'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.period is string
+        && request.resource.data.period.matches('[0-9]{4}-[0-9]{2}')
+        && usageId == request.auth.uid + '_' + request.resource.data.period
+        && request.resource.data.chatCalls is int
+        && request.resource.data.imageGenerations is int
+        && request.resource.data.imageAnalyses is int
+        && request.resource.data.chatCalls >= 0
+        && request.resource.data.imageGenerations >= 0
+        && request.resource.data.imageAnalyses >= 0
+        && request.resource.data.chatCalls <= 1000000
+        && request.resource.data.imageGenerations <= 1000000
+        && request.resource.data.imageAnalyses <= 1000000
+        && request.resource.data.models is map
+        && request.resource.data.models.size() <= 20;
+    }
+
+    function validMonthlyCreate() {
+      return request.resource.data.chatCalls
+          + request.resource.data.imageGenerations
+          + request.resource.data.imageAnalyses == 1;
+    }
+
+    function validMonthlyIncrement() {
+      return request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.period == resource.data.period
+        && request.resource.data.chatCalls >= resource.data.chatCalls
+        && request.resource.data.imageGenerations >= resource.data.imageGenerations
+        && request.resource.data.imageAnalyses >= resource.data.imageAnalyses
+        && (request.resource.data.chatCalls - resource.data.chatCalls)
+          + (request.resource.data.imageGenerations - resource.data.imageGenerations)
+          + (request.resource.data.imageAnalyses - resource.data.imageAnalyses) == 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'chatCalls', 'imageGenerations', 'imageAnalyses', 'models'
+        ]);
+    }
+
+    function validPurchase() {
+      return signedInAndVerified()
+        && request.resource.data.keys().hasAll([
+          'uid', 'email', 'type', 'productId', 'title', 'priceDkk', 'status', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'type', 'productId', 'title', 'priceDkk', 'status', 'createdAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt is timestamp
+        && (
+          (request.resource.data.type == 'plan'
+            && (
+              (request.resource.data.productId == 'solo'
+                && request.resource.data.title == 'Solo'
+                && request.resource.data.priceDkk == 79)
+              ||
+              (request.resource.data.productId == 'plus'
+                && request.resource.data.title == 'Plus'
+                && request.resource.data.priceDkk == 149)
+            ))
+          ||
+          (request.resource.data.type == 'addon'
+            && (
+              (request.resource.data.productId == 'img50'
+                && request.resource.data.title == '+50 billeder'
+                && request.resource.data.priceDkk == 49)
+              ||
+              (request.resource.data.productId == 'img150'
+                && request.resource.data.title == '+150 billeder'
+                && request.resource.data.priceDkk == 119)
+              ||
+              (request.resource.data.productId == 'vision50'
+                && request.resource.data.title == '+50 billedanalyser'
+                && request.resource.data.priceDkk == 19)
+              ||
+              (request.resource.data.productId == 'vision200'
+                && request.resource.data.title == '+200 billedanalyser'
+                && request.resource.data.priceDkk == 59)
+              ||
+              (request.resource.data.productId == 'packs'
+                && request.resource.data.title == 'Alle pakker'
+                && request.resource.data.priceDkk == 39)
+            ))
+        );
     }
 
     match /scenePresets/{sceneId} {
@@ -22,28 +237,15 @@ service cloud.firestore {
     }
 
     match /userProfiles/{userId} {
-      allow read: if isStayAdmin() || (signedInAndVerified() && request.auth.uid == userId);
-      allow create: if signedInAndVerified()
-        && request.auth.uid == userId
-        && request.resource.data.email == request.auth.token.email;
-      allow update: if signedInAndVerified()
-        && request.auth.uid == userId
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['email', 'chatName', 'lastSeen']);
+      allow read: if isStayAdmin() || isOwner(userId);
+      allow create: if validProfileCreate(userId);
+      allow update: if validProfileUpdate(userId);
       allow delete: if false;
     }
 
     match /userEntitlements/{userId} {
-      allow read: if isStayAdmin() || (signedInAndVerified() && request.auth.uid == userId);
-      allow create: if isStayAdmin() || (signedInAndVerified()
-        && request.auth.uid == userId
-        && request.resource.data.plan == 'free'
-        && request.resource.data.status == 'active'
-        && request.resource.data.expiresAt == null
-        && request.resource.data.extraPacks == false
-        && request.resource.data.bonusImageGenerations == 0
-        && request.resource.data.bonusImageAnalyses == 0);
+      allow read: if isStayAdmin() || isOwner(userId);
+      allow create: if isStayAdmin() || validFreeEntitlementCreate(userId);
       allow update: if isStayAdmin();
       allow delete: if false;
     }
@@ -55,40 +257,35 @@ service cloud.firestore {
     }
 
     match /usageDaily/{usageId} {
-      allow read: if isStayAdmin() || (signedInAndVerified()
-        && usageId.matches(request.auth.uid + '_.*'));
-      allow create: if signedInAndVerified()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.chatCalls >= 0;
-      allow update: if signedInAndVerified()
+      allow read: if isStayAdmin()
+        || (signedInAndVerified() && resource.data.uid == request.auth.uid);
+      allow create: if validDailyUsageShape(usageId)
+        && request.resource.data.chatCalls == 1;
+      allow update: if validDailyUsageShape(usageId)
         && resource.data.uid == request.auth.uid
         && request.resource.data.uid == resource.data.uid
-        && request.resource.data.chatCalls >= resource.data.chatCalls;
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.day == resource.data.day
+        && request.resource.data.chatCalls == resource.data.chatCalls + 1
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'chatCalls', 'imageGenerations', 'imageAnalyses', 'models'
+        ]);
       allow delete: if false;
     }
 
     match /usageMonthly/{usageId} {
-      allow read: if isStayAdmin() || (signedInAndVerified()
-        && usageId.matches(request.auth.uid + '_.*'));
-      allow create: if signedInAndVerified()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.chatCalls >= 0
-        && request.resource.data.imageGenerations >= 0
-        && request.resource.data.imageAnalyses >= 0;
-      allow update: if signedInAndVerified()
-        && resource.data.uid == request.auth.uid
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.chatCalls >= resource.data.chatCalls
-        && request.resource.data.imageGenerations >= resource.data.imageGenerations
-        && request.resource.data.imageAnalyses >= resource.data.imageAnalyses;
+      allow read: if isStayAdmin()
+        || (signedInAndVerified() && resource.data.uid == request.auth.uid);
+      allow create: if validMonthlyUsageShape(usageId) && validMonthlyCreate();
+      allow update: if validMonthlyUsageShape(usageId) && validMonthlyIncrement();
       allow delete: if false;
     }
 
     match /purchaseRequests/{requestId} {
-      allow read: if isStayAdmin() || (signedInAndVerified() && resource.data.uid == request.auth.uid);
-      allow create: if signedInAndVerified()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.status == 'pending';
+      allow get: if isStayAdmin()
+        || (signedInAndVerified() && resource.data.uid == request.auth.uid);
+      allow list: if isStayAdmin();
+      allow create: if validPurchase();
       allow update: if isStayAdmin();
       allow delete: if false;
     }

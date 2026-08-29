@@ -1,6 +1,6 @@
 # Stay — status
 
-Opdateres løbende. Sidst: 28. aug 2026.
+Opdateres løbende. Sidst: 29. aug 2026.
 
 Appnavn: **Stay**  
 Mail: teamstayapp@gmail.com  
@@ -23,9 +23,12 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] GitHub Pages-workflow
 - [x] Login-layout ala portal (email, kode, log ind)
 - [x] Panik / diskret skærm
+- [x] Valgfri panikdestination: noter, vejr, kalender eller eget app-/web-link
+- [x] Panik gemmer straks den aktive lokalt gemte session før appskift
 - [x] Mobil chatvisning med beskedbobler og partnerbillede-felt
 - [x] Chatnavn gemt pr. bruger og sendt med til AI
 - [x] Udstyrsvalg + eget felt sendt med til AI-prompten
+- [x] Sammenklappelig udstyrsliste med antal valgte
 - [x] Privat session eller lokal lagring valgt pr. bruger
 - [x] Gendan/slet lokalt gemt chat og lokale billedfiler
 - [x] Samtalestil: blid, kold, drilsk, dominerende eller eget ønske
@@ -39,6 +42,7 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] Adminredigerbare grænser pr. plan, som gælder straks i Workeren
 - [x] Tilkøb og abonnement sendes til admin til manuel godkendelse
 - [x] Admin kan centralt tilføje, redigere, deaktivere og slette udstyr og temaer
+- [x] Mobilvenlig admin-sidemenu med funktionsopdeling
 - [x] Admins navne, beskrivelser og temainstruktioner slår igennem hos alle brugere
 - [x] Tre promptlag pr. scene: Blød/SFW, Fræk/NSFW og serverlåst Plus
 - [x] Udvidet udstyrskatalog med grupper og mindste plan, redigerbart i admin
@@ -47,6 +51,8 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] Worker validerer kropszoner og håndhæver plan, NSFW, tema og sikkerhed
 - [x] Tæt på/Jeg kommer som særskilte AI-intents med valgfri brugeranatomi
 - [x] Lokalt partnerbillede som gratis favorit på den valgte enhed
+- [x] Lodret helfigurbillede i 2:3, større visning og kontrol mod sorte/tomme billeder
+- [x] Faste Master/Mistress-kropskort forfra/bagfra med præcise trykzoner
 
 ---
 
@@ -87,7 +93,7 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] Glemt adgangskode
 - [ ] Domain + `hej@…` til Gmail
 - [ ] Vilkår, privatliv, 18+ på rigtigt domain
-- [ ] Session-timeout, panikpinkode og valgfrit notifikationsniveau med advarsel
+- [ ] Session-timeout og panikpinkode
 - [ ] Adskilte dev- og produktionsmiljøer
 
 Den prioriterede rækkefølge og de bevidste fravalg står i
@@ -100,7 +106,7 @@ Den prioriterede rækkefølge og de bevidste fravalg står i
 Den fulde idébank ligger i [IDEER.md](IDEER.md).
 
 - Panik-knap med pinkode for at komme tilbage
-- Flere decoy-skærme (notes, vejr, “arbejde”)
+- Flere interne decoy-skærme ud over noter
 - Maskine / e-stim / fuckmachine via Bluetooth (svært i PWA)
 - Stemme / lyd
 - Flere fetish-pakker som tilkøb

@@ -20,17 +20,22 @@ export interface BodyZone {
 }
 
 export const BODY_ZONES: BodyZone[] = [
-  { id: 'mouth', view: 'front', label: 'Mund', x: 38, y: 14, w: 24, h: 10 },
-  { id: 'neck', view: 'front', label: 'Hals', x: 40, y: 24, w: 20, h: 8 },
-  { id: 'chest', view: 'front', label: 'Bryst', x: 28, y: 32, w: 44, h: 16 },
-  { id: 'belly', view: 'front', label: 'Mave', x: 34, y: 48, w: 32, h: 12 },
-  { id: 'groin', view: 'front', label: 'Skød', x: 36, y: 62, w: 28, h: 14 },
-  { id: 'thigh', view: 'front', label: 'Lår', x: 28, y: 76, w: 44, h: 16 },
-  { id: 'hand', view: 'front', label: 'Hånd', x: 6, y: 48, w: 18, h: 14 },
-  { id: 'neck', view: 'back', label: 'Nakke', x: 38, y: 16, w: 24, h: 10 },
-  { id: 'ass', view: 'back', label: 'Bagdel', x: 30, y: 52, w: 40, h: 18 },
-  { id: 'thigh', view: 'back', label: 'Lår', x: 28, y: 72, w: 44, h: 18 },
+  { id: 'mouth', view: 'front', label: 'Mund', x: 42, y: 16, w: 16, h: 6 },
+  { id: 'neck', view: 'front', label: 'Hals', x: 40, y: 22, w: 20, h: 6 },
+  { id: 'chest', view: 'front', label: 'Bryst', x: 30, y: 28, w: 40, h: 12 },
+  { id: 'belly', view: 'front', label: 'Mave', x: 34, y: 40, w: 32, h: 10 },
+  { id: 'groin', view: 'front', label: 'Skød', x: 36, y: 50, w: 28, h: 10 },
+  { id: 'hand', view: 'front', label: 'Hånd', x: 4, y: 48, w: 18, h: 12 },
+  { id: 'thigh', view: 'front', label: 'Lår', x: 30, y: 62, w: 40, h: 20 },
+  { id: 'neck', view: 'back', label: 'Nakke', x: 38, y: 18, w: 24, h: 8 },
+  { id: 'ass', view: 'back', label: 'Bagdel', x: 32, y: 46, w: 36, h: 14 },
+  { id: 'thigh', view: 'back', label: 'Lår', x: 30, y: 62, w: 40, h: 20 },
 ]
+
+export function bodyMapSrc(figure: 'master' | 'mistress', view: BodyView): string {
+  const base = import.meta.env.BASE_URL || '/'
+  return `${base}bodies/${figure}-${view}.svg`
+}
 
 export function touchUserLine(zone: BodyZone): string {
   return `*rører ved din ${zone.label.toLowerCase()}*`

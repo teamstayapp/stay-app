@@ -68,13 +68,17 @@ import {
   hasDeviceSession,
   loadDeviceSession,
   loadNotificationStyle,
+  loadPanicDestination,
   loadPrivacyMode,
   saveDeviceSession,
   saveNotificationStyle,
+  savePanicDestination,
   savePrivacyMode,
+  type PanicDestination,
 } from './engine/sessionStore'
 import {
   BODY_ZONES,
+  bodyMapSrc,
   localTouchReply,
   touchUserLine,
   type BodyView,
@@ -179,6 +183,7 @@ export default function App() {
   const [sceneCatalog, setSceneCatalog] = useState(DEFAULT_SCENES)
   const [contentCatalog, setContentCatalog] = useState(DEFAULT_CONTENT_CATALOG)
   const [savedSessionAvailable, setSavedSessionAvailable] = useState(false)
+  const [panicDestination, setPanicDestination] = useState<PanicDestination>({ mode: 'decoy', customUrl: '' })
   const [back, setBack] = useState<Phase>('age')
   const [media, setMedia] = useState<{ url: string; kind: 'image' | 'video'; blob: Blob } | null>(null)
   const aiRequestRef = useRef<AbortController | null>(null)
@@ -260,9 +265,11 @@ export default function App() {
     if (!account) return
     const privacyMode = loadPrivacyMode(account.id)
     const notificationStyle = loadNotificationStyle(account.id)
+    const savedPanicDestination = loadPanicDestination(account.id)
     void hasDeviceSession(account.id).then((available) => {
       setSavedSessionAvailable(available)
       setProfile((current) => ({ ...current, privacyMode, notificationStyle }))
+      setPanicDestination(savedPanicDestination)
     })
   }, [account])
 
@@ -288,7 +295,11 @@ export default function App() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [aiThinking, lines, phase])
 
-  function panic() {
+  useEffect(() => {
+    if (phase !== 'decoy') document.title = 'Stay'
+  }, [phase])
+
+  async function panic() {
     aiRequestRef.current?.abort()
     setAiThinking(false)
     setBodyOpen(false)
@@ -296,6 +307,38 @@ export default function App() {
     setDraft('')
     setPhase('decoy')
     setDecoyTaps(0)
+    document.title = 'Noter'
+
+    if (account && profile.privacyMode === 'device' && (phase === 'session' || phase === 'aftercare')) {
+      const blob = media?.blob ?? savedMediaBlobRef.current
+      try {
+        await saveDeviceSession(account.id, {
+          profile,
+          lines,
+          near,
+          cycle,
+          running,
+          savedAt: new Date().toISOString(),
+          ...(blob ? { media: { kind: media?.kind || (blob.type.startsWith('video/') ? 'video' : 'image'), blob } } : {}),
+        })
+        setSavedSessionAvailable(true)
+      } catch {
+        // Den diskrete side skal stadig åbne, selv hvis enhedslageret er fyldt eller blokeret.
+      }
+    }
+
+    const destination = panicDestination.mode === 'weather'
+      ? 'https://www.google.com/search?q=vejret'
+      : panicDestination.mode === 'calendar'
+        ? 'https://calendar.google.com/'
+        : panicDestination.mode === 'custom'
+          ? panicDestination.customUrl.trim()
+          : ''
+
+    if (!destination) return
+    const candidate = /^[a-z][a-z0-9+.-]*:/i.test(destination) ? destination : `https://${destination}`
+    if (/^(javascript|data|file):/i.test(candidate)) return
+    window.location.assign(candidate)
   }
   function dropMedia() {
     if (media) URL.revokeObjectURL(media.url)
@@ -316,6 +359,11 @@ export default function App() {
   function chooseNotificationStyle(style: NotificationStyle) {
     setProfile((current) => ({ ...current, notificationStyle: style }))
     if (account) saveNotificationStyle(account.id, style)
+  }
+
+  function choosePanicDestination(destination: PanicDestination) {
+    setPanicDestination(destination)
+    if (account) savePanicDestination(account.id, destination)
   }
 
   async function resumeSavedSession() {
@@ -1099,6 +1147,58 @@ export default function App() {
           <p className="privacy-note">Valget slås aldrig til automatisk. Du godkender også hver påmindelse, før den planlægges.</p>
         </section>
 
+        <details className="setup-fold panic-settings">
+          <summary>
+            <span className="setup-fold-title">
+              <strong>Panikknap</strong>
+              <small>Gem Stay og åbn en diskret destination</small>
+            </span>
+            <span className="setup-fold-count">
+              {panicDestination.mode === 'decoy'
+                ? 'Noter'
+                : panicDestination.mode === 'weather'
+                  ? 'Vejr'
+                  : panicDestination.mode === 'calendar'
+                    ? 'Kalender'
+                    : 'Eget valg'}
+            </span>
+          </summary>
+          <div className="setup-fold-content panic-options">
+            <p className="hint">Vælg hvad knappen “Noter” skal åbne. Et app-link åbner den tilhørende app, når mobilen understøtter det; ellers bruges browseren.</p>
+            {([
+              ['decoy', 'Diskrete noter', 'Bliv i Stay på en neutral noteside.'],
+              ['weather', 'Vejret', 'Åbn en neutral vejrsøgning.'],
+              ['calendar', 'Kalender', 'Åbn Google Kalender eller den tilknyttede app.'],
+              ['custom', 'Eget app- eller web-link', 'Indsæt fx en nyhedsside eller et app-link.'],
+            ] as const).map(([mode, title, description]) => (
+              <label className={panicDestination.mode === mode ? 'privacy-option on' : 'privacy-option'} key={mode}>
+                <input
+                  type="radio"
+                  name="panic-destination"
+                  checked={panicDestination.mode === mode}
+                  onChange={() => choosePanicDestination({ ...panicDestination, mode })}
+                />
+                <span><strong>{title}</strong><small>{description}</small></span>
+              </label>
+            ))}
+            {panicDestination.mode === 'custom' && (
+              <label className="field">
+                App- eller web-link
+                <input
+                  value={panicDestination.customUrl}
+                  maxLength={500}
+                  inputMode="url"
+                  placeholder="https://eksempel.dk eller appnavn://"
+                  onChange={(event) => choosePanicDestination({ ...panicDestination, customUrl: event.target.value })}
+                />
+              </label>
+            )}
+            <p className="privacy-note">
+              Ved “Gem på denne enhed” gemmes den åbne scene før skiftet. En privat session bliver ikke gemt.
+            </p>
+          </div>
+        </details>
+
         <div className="scene-grid">
           {scenes.map((scene) => (
             <button
@@ -1357,34 +1457,50 @@ export default function App() {
         </div>
         <p className="hint">{intensityHint(profile.intensity)}</p>
 
-        <h2>Udstyr til rådighed</h2>
-        <p className="hint">Vælg kun det, du faktisk har. AI-partneren tilpasser scenen efter listen.</p>
-        <div className="equipment-grid">
-          {contentCatalog.equipment
-            .filter((item) => item.enabled && planCanUseContent(profile.plan, item))
-            .map((item) => (
-            <label
-              key={item.id}
-              className={profile.equipment.includes(item.id) ? 'equipment-option on' : 'equipment-option'}
-            >
+        <details className="setup-fold equipment-fold">
+          <summary>
+            <span className="setup-fold-title">
+              <strong>Udstyr til rådighed</strong>
+              <small>Tryk for at åbne eller lukke listen</small>
+            </span>
+            <span className="setup-fold-count">
+              {contentCatalog.equipment.filter(
+                (item) => item.enabled
+                  && planCanUseContent(profile.plan, item)
+                  && profile.equipment.includes(item.id),
+              ).length + (profile.customEquipment.trim() ? 1 : 0)} valgt
+            </span>
+          </summary>
+          <div className="setup-fold-content">
+            <p className="hint">Vælg kun det, du faktisk har. AI-partneren tilpasser scenen efter listen.</p>
+            <div className="equipment-grid">
+              {contentCatalog.equipment
+                .filter((item) => item.enabled && planCanUseContent(profile.plan, item))
+                .map((item) => (
+                <label
+                  key={item.id}
+                  className={profile.equipment.includes(item.id) ? 'equipment-option on' : 'equipment-option'}
+                >
+                  <input
+                    type="checkbox"
+                    checked={profile.equipment.includes(item.id)}
+                    onChange={() => toggleEquipment(item.id)}
+                  />
+                  <span>{item.title}</span>
+                </label>
+                ))}
+            </div>
+            <label className="field">
+              Andet udstyr
               <input
-                type="checkbox"
-                checked={profile.equipment.includes(item.id)}
-                onChange={() => toggleEquipment(item.id)}
+                value={profile.customEquipment}
+                maxLength={160}
+                placeholder="Skriv andet udstyr, adskilt med komma"
+                onChange={(e) => setProfile({ ...profile, customEquipment: e.target.value })}
               />
-              <span>{item.title}</span>
             </label>
-            ))}
-        </div>
-        <label className="field">
-          Andet udstyr
-          <input
-            value={profile.customEquipment}
-            maxLength={160}
-            placeholder="Skriv andet udstyr, adskilt med komma"
-            onChange={(e) => setProfile({ ...profile, customEquipment: e.target.value })}
-          />
-        </label>
+          </div>
+        </details>
 
         <h2>Fetish</h2>
         <div className="grid">
@@ -1572,15 +1688,11 @@ export default function App() {
             </div>
           </div>
           <div className={`body-stage ${bodyView}`}>
-            {profile.partnerImageUrl ? (
-              <img src={profile.partnerImageUrl} alt="" className="body-stage-photo" />
-            ) : (
-              <div className="body-stage-fallback" aria-hidden="true">
-                <i className="silhouette-head" />
-                <i className="silhouette-body" />
-                <i className="silhouette-legs" />
-              </div>
-            )}
+            <img
+              src={bodyMapSrc(profile.figure, bodyView)}
+              alt=""
+              className="body-stage-photo body-stage-map"
+            />
             <div className="body-stage-shade" aria-hidden="true" />
             {BODY_ZONES.filter((zone) => zone.view === bodyView).map((zone) => (
               <button
@@ -1601,8 +1713,8 @@ export default function App() {
             ))}
           </div>
           <small>
-            Zonerne er omtrentlige, fordi partnerbilledet kan variere. NSFW-valg,
-            plan, valgte temaer og safeword gælder stadig.
+            Fast kropskort til tryk. AI-partnerens eget billede vises fortsat i chatten.
+            NSFW, plan, temaer og safeword gælder stadig.
           </small>
         </section>
       )}

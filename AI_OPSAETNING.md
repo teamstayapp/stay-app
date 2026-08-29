@@ -51,7 +51,7 @@ Efter en grøn kørsel viser chatten teksten **AI-chat aktiv** nederst i scenen.
 
 Den samme Cloudflare Worker indeholder nu også:
 
-- `POST /image/generate` til et AI-genereret partnerportræt
+- `POST /image/generate` til et lodret AI-genereret helfigurbillede i 2:3-format
 - `POST /vision` til analyse af et billede, som brugeren vælger i chatten
 - serverkontrol af daglige/månedlige grænser før hvert Venice-kald
 - registrering af kald og tokens pr. AI-model i Firestore
@@ -59,6 +59,9 @@ Den samme Cloudflare Worker indeholder nu også:
 Admin vælger billedgenereringsmodellen særskilt for hver scene. Standardlisten
 indeholder kun private billedmodeller, som virker med en Venice-nøgle sat til
 **Private models only**. Tekstmodellerne i appen understøtter også vision.
+Billedkaldet bruger Venices native endpoint, tilfældig seed og modeltilpasset
+portrætstørrelse. Appen afviser et tomt, beskadiget eller næsten sort resultat,
+så det ikke erstatter et fungerende partnerbillede.
 
 Hvis Workeren indsættes manuelt i Cloudflare, bruges hele filen
 `worker/stay-api-worker-manual.js`, hvorefter der trykkes **Deploy**.

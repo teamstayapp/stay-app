@@ -193,9 +193,10 @@ async function generateImage(req, env, body) {
 	const prompt = buildImagePrompt(profile, scene);
 	let venice;
 	try {
-		venice = await fetch("https://api.venice.ai/api/v1/images/generations", {
+		const sizing = imageModel === "grok-imagine-image" ? { aspect_ratio: "2:3", resolution: "1K" } : { width: 768, height: 1152 };
+		venice = await fetch("https://api.venice.ai/api/v1/image/generate", {
 			method: "POST",
-			signal: AbortSignal.timeout(6e4),
+			signal: AbortSignal.timeout(75e3),
 			headers: {
 				Authorization: `Bearer ${env.VENICE_API_KEY}`,
 				"Content-Type": "application/json"
@@ -203,11 +204,14 @@ async function generateImage(req, env, body) {
 			body: JSON.stringify({
 				model: imageModel,
 				prompt,
-				n: 1,
-				size: "1024x1024",
-				output_format: "jpeg",
-				response_format: "b64_json",
-				moderation: profile.nsfw === true ? "low" : "auto"
+				negative_prompt: "close-up, headshot, cropped body, cropped feet, body out of frame, black image, blank image, silhouette, underexposed, blurry, duplicate person, extra people, malformed anatomy, text, logo, watermark, childlike features, age ambiguity",
+				variants: 1,
+				format: "webp",
+				return_binary: false,
+				safe_mode: profile.nsfw !== true,
+				seed: randomImageSeed(),
+				enhance_prompt: false,
+				...sizing
 			})
 		});
 	} catch {
@@ -215,9 +219,11 @@ async function generateImage(req, env, body) {
 	}
 	const data = await venice.json().catch(() => null);
 	if (!venice.ok) return json(req, env, { error: veniceImageError(data, venice.status) }, 502);
-	const image = data?.data?.[0];
-	const imageUrl = image?.b64_json ? `data:image/jpeg;base64,${image.b64_json}` : image?.url?.startsWith("data:image/") ? image.url : "";
-	if (!imageUrl) return json(req, env, { error: "Venice svarede uden et billede" }, 502);
+	const compatibilityImage = data?.data?.[0];
+	const rawImage = data?.images?.[0] || compatibilityImage?.b64_json || compatibilityImage?.url || "";
+	const imageUrl = rawImage.startsWith("data:image/") ? rawImage : rawImage ? `data:image/webp;base64,${rawImage}` : "";
+	const encodedImage = imageUrl.includes(",") ? imageUrl.slice(imageUrl.indexOf(",") + 1) : "";
+	if (!imageUrl || encodedImage.length < 1e4 || !/^[a-zA-Z0-9+/=]+$/.test(encodedImage)) return json(req, env, { error: "Billedmodellen svarede med et tomt eller beskadiget billede. Prøv igen." }, 502);
 	if (!await recordUsage(env, usageGate.gate, imageModel)) return json(req, env, { error: "Billedet blev lavet, men forbruget kunne ikke registreres. Prøv igen." }, 503);
 	return json(req, env, {
 		imageUrl,
@@ -310,13 +316,19 @@ function buildImagePrompt(profile, scene) {
 	};
 	const anatomy = figure === "female" ? `${safe(profile.breasts, "medium")} breast size` : `${safe(profile.penis, "average").replace("_", " ")} build`;
 	return [
-		"Create a high-quality square portrait of one fictional adult character, clearly age 25 or older.",
+		"Create a high-quality vertical 2:3 full-length character photograph of one fictional adult character, clearly age 25 or older.",
 		"The character must not resemble or depict a real person. No text, logo, watermark, childlike features, school setting or age ambiguity.",
 		`${figure} character, ${bodyLabels[safe(profile.body, "athletic")] || "athletic"}, ${skinLabels[safe(profile.skin, "olive")] || "olive skin"}, ${anatomy}, ${clothing}.`,
 		scene.imagePrompt || "Cinematic portrait, direct eye contact, detailed natural lighting.",
 		profile.nsfw === true && scene.nsfwImagePrompt ? scene.nsfwImagePrompt : "",
-		profile.plan === "plus" && profile.nsfw === true && scene.plusImagePrompt ? scene.plusImagePrompt : ""
+		profile.plan === "plus" && profile.nsfw === true && scene.plusImagePrompt ? scene.plusImagePrompt : "",
+		"Composition requirement: camera pulled back, one standing person, the complete body is visible from the top of the head to both feet, with space above the head and below the feet. Do not crop any part of the body. Clear balanced lighting and a visible background; never return a black frame."
 	].filter(Boolean).join(" ");
+}
+function randomImageSeed() {
+	const random = new Uint32Array(1);
+	crypto.getRandomValues(random);
+	return random[0] % 1999999999 - 999999999;
 }
 function profileForPlan(value, plan) {
 	const profile = { ...record(value) };

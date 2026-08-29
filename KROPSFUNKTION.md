@@ -1,17 +1,19 @@
 # Interaktiv partnerkrop
 
 Kropsfunktionen åbnes med **Rør krop** øverst i den aktive chat. Brugeren kan
-skifte mellem forfra og bagfra og trykke på en markeret zone. Hvis der er
-oprettet et AI-partnerbillede, bruges det som baggrund; ellers vises en neutral
-silhuet.
+skifte mellem forfra og bagfra og trykke på en markeret zone. Funktionen bruger
+et fast kropskort, som følger den valgte figur: Master eller Mistress. Det gør
+trykzonerne stabile, selv om det genererede partnerbillede varierer.
+
+De fire kort ligger i `public/bodies/` som Master/Mistress forfra og bagfra.
+Det genererede partnerbillede vises fortsat i chatkortet og i opsætningen.
 
 ## Zoner
 
 - Forfra: mund, hals, bryst, mave, skød, lår og hånd
 - Bagfra: nakke, bagdel og lår
 
-Koordinaterne ligger i `src/engine/bodyZones.ts` og kan justeres, hvis et fast
-billedformat senere gør placeringen mere præcis.
+Koordinaterne ligger i `src/engine/bodyZones.ts` og er tilpasset de faste kort.
 
 ## AI-flow
 
@@ -41,7 +43,5 @@ private lagring som resten af sessionen.
 
 ## Udgivelse
 
-Frontendændringen uploades til GitHub Pages. Den medfølgende
-`worker/stay-api-worker-manual.js` skal bagefter erstatte den eksisterende kode
-i Cloudflare Worker-editoren og deployes. Der kræves ingen nye Firebase-felter,
-hemmelige nøgler eller Cloudflare-variabler.
+Kropskortændringen uploades til GitHub Pages. Den kræver ingen ny Worker,
+Firebase-felter, hemmelige nøgler eller Cloudflare-variabler.

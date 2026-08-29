@@ -121,7 +121,53 @@ export async function generatePartnerImage({ profile, signal }: GeneratePartnerI
   if (typeof data.imageUrl !== 'string' || !data.imageUrl.startsWith('data:image/')) {
     throw new Error('Billedmodellen svarede uden et billede')
   }
+  await assertUsableGeneratedImage(data.imageUrl)
   return data.imageUrl
+}
+
+async function assertUsableGeneratedImage(imageUrl: string): Promise<void> {
+  if (imageUrl.length < 15_000) {
+    throw new Error('Billedmodellen sendte et tomt billede. Dit tidligere billede er bevaret; prøv igen.')
+  }
+
+  let image: HTMLImageElement
+  try {
+    image = await loadImage(imageUrl)
+  } catch {
+    throw new Error('Billedmodellen sendte et beskadiget billede. Dit tidligere billede er bevaret; prøv igen.')
+  }
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 32
+  canvas.height = 48
+  const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) throw new Error('Billedet kunne ikke kontrolleres på denne enhed')
+  context.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+  let darkPixels = 0
+  let visiblePixels = 0
+  let lightTotal = 0
+  let minimumLight = 255
+  let maximumLight = 0
+
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index + 3] < 16) continue
+    const light = (pixels[index] * 0.2126) + (pixels[index + 1] * 0.7152) + (pixels[index + 2] * 0.0722)
+    visiblePixels += 1
+    lightTotal += light
+    minimumLight = Math.min(minimumLight, light)
+    maximumLight = Math.max(maximumLight, light)
+    if (light < 7) darkPixels += 1
+  }
+
+  const averageLight = visiblePixels ? lightTotal / visiblePixels : 0
+  const almostEntirelyBlack = visiblePixels === 0
+    || darkPixels / visiblePixels > 0.985
+    || (averageLight < 10 && maximumLight - minimumLight < 8)
+  if (almostEntirelyBlack) {
+    throw new Error('Billedmodellen lavede et næsten sort billede. Dit tidligere billede er bevaret; prøv igen.')
+  }
 }
 
 export async function analyzeImage({

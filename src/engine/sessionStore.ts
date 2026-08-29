@@ -5,6 +5,14 @@ const STORE_NAME = 'sessions'
 const FALLBACK_PREFIX = 'stay.saved-session.'
 const PRIVACY_PREFIX = 'stay.privacy-mode.'
 const NOTIFICATION_STYLE_PREFIX = 'stay.notification-style.'
+const PANIC_DESTINATION_PREFIX = 'stay.panic-destination.'
+
+export type PanicDestinationMode = 'decoy' | 'weather' | 'calendar' | 'custom'
+
+export interface PanicDestination {
+  mode: PanicDestinationMode
+  customUrl: string
+}
 
 export interface DeviceSession {
   profile: Profile
@@ -108,4 +116,24 @@ export function loadNotificationStyle(userId: string): NotificationStyle {
 
 export function saveNotificationStyle(userId: string, style: NotificationStyle): void {
   localStorage.setItem(NOTIFICATION_STYLE_PREFIX + userId, style)
+}
+
+export function loadPanicDestination(userId: string): PanicDestination {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PANIC_DESTINATION_PREFIX + userId) || '') as Partial<PanicDestination>
+    const allowed: PanicDestinationMode[] = ['decoy', 'weather', 'calendar', 'custom']
+    return {
+      mode: allowed.includes(parsed.mode as PanicDestinationMode) ? parsed.mode as PanicDestinationMode : 'decoy',
+      customUrl: typeof parsed.customUrl === 'string' ? parsed.customUrl.slice(0, 500) : '',
+    }
+  } catch {
+    return { mode: 'decoy', customUrl: '' }
+  }
+}
+
+export function savePanicDestination(userId: string, destination: PanicDestination): void {
+  localStorage.setItem(PANIC_DESTINATION_PREFIX + userId, JSON.stringify({
+    mode: destination.mode,
+    customUrl: destination.customUrl.slice(0, 500),
+  }))
 }
