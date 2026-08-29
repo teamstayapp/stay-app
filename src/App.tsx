@@ -1,23 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  AssSize,
   Body,
   Breasts,
   EquipmentId,
+  EyeColor,
+  FacialHair,
   FetishId,
   Figure,
+  HairColor,
+  HairLength,
+  HipSize,
   Intensity,
   Line,
   Look,
+  Makeup,
   Nearness,
   NotificationStyle,
   Penis,
   Personality,
+  PlayMode,
   Phase,
   PrivacyMode,
   Profile,
+  PubicStyle,
   Role,
   Skin,
+  Attraction,
   UserAnatomy,
+  UserGender,
 } from './types'
 import {
   aftercare,
@@ -48,6 +59,7 @@ import {
   planCanUseContent,
   type ContentCatalog,
 } from './engine/contentCatalog'
+import { PROFESSIONS } from './engine/professions'
 import { observeChatName, saveChatName } from './engine/userProfile'
 import {
   DEFAULT_USAGE_CONFIG,
@@ -114,13 +126,31 @@ const emptyProfile = (): Profile => ({
   notificationStyle: 'discreet',
   sceneId: 'soft-care',
   role: 'slave',
+  playMode: 'oneway',
   figure: 'mistress',
   userAnatomy: 'penis',
+  userGender: 'unset',
+  attraction: 'both',
+  likeWords: '',
+  banWords: '',
   look: 'clothed',
+  profession: 'none',
   body: 'athletic',
   skin: 'olive',
   breasts: 'medium',
   penis: 'large',
+  hairColor: 'brown',
+  hairLength: 'long',
+  eyes: 'brown',
+  makeup: 'soft',
+  facialHair: 'none',
+  ass: 'round',
+  hips: 'soft',
+  pubic: 'trimmed',
+  freckles: false,
+  tattoos: false,
+  wet: false,
+  lookWish: '',
   personality: 'cold',
   customWish: '',
   nsfw: false,
@@ -146,6 +176,8 @@ export default function App() {
   const [draft, setDraft] = useState('')
   const [near, setNear] = useState<Nearness>('ok')
   const [cycle, setCycle] = useState(1)
+  const [partnerHeat, setPartnerHeat] = useState(12)
+  const [userHeat, setUserHeat] = useState(8)
   const [aftercareReason, setAftercareReason] = useState<'finish' | 'safeword'>('finish')
   const [running, setRunning] = useState(false)
   const [shopOpen, setShopOpen] = useState(false)
@@ -157,6 +189,8 @@ export default function App() {
   const [aiThinking, setAiThinking] = useState(false)
   const [bodyOpen, setBodyOpen] = useState(false)
   const [bodyView, setBodyView] = useState<BodyView>('front')
+  const [stageOpen, setStageOpen] = useState(false)
+  const [saveNotice, setSaveNotice] = useState('')
   const [favoriteLook, setFavoriteLook] = useState<FavoriteLook | null>(null)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [imageBusy, setImageBusy] = useState(false)
@@ -583,14 +617,67 @@ export default function App() {
     }
   }
 
+
+  async function saveImageToDevice(url?: string, filename = 'stay-billede.png') {
+    if (!url) {
+      setSaveNotice('Der er ikke et billede at gemme endnu.')
+      setImageNotice('Der er ikke et billede at gemme endnu.')
+      return
+    }
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const type = blob.type || 'image/png'
+      const file = new File([blob], filename, { type })
+      const shareNav = navigator as Navigator & { canShare?: (data: ShareData) => boolean }
+      if (navigator.share && shareNav.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename })
+        setSaveNotice('Billedet er sendt til gem/del på telefonen.')
+        setImageNotice('Billedet er sendt til gem/del på telefonen.')
+        return
+      }
+      const href = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = href
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(href), 1500)
+      setSaveNotice('Billedet er downloadet.')
+      setImageNotice('Billedet er downloadet.')
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer')
+      setSaveNotice('Åbnede billedet. Hold inde for at gemme, hvis download ikke virker.')
+      setImageNotice('Åbnede billedet. Hold inde for at gemme, hvis download ikke virker.')
+    }
+  }
+
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setPartnerHeat((heat) => {
+        let delta = running ? 2 : -1
+        if (near === 'close') delta += 3
+        if (near === 'too_much') delta = -5
+        if (profile.playMode === 'mutual' && userHeat >= 80) delta += 2
+        return Math.max(0, Math.min(100, heat + delta))
+      })
+    }, 1800)
+    return () => window.clearInterval(id)
+  }, [running, near, profile.playMode, userHeat])
+
   function tickSession(kind: 'close' | 'ok' | 'too' | 'deny' | 'finish' | 'safe') {
     aiRequestRef.current?.abort()
     setAiThinking(false)
     if (kind === 'safe') {
       setBodyOpen(false)
+      setStageOpen(false)
       setRunning(false)
       setAftercareReason('safeword')
-      push(youLine(profile.limits.safeword), aiLine(onSafeword()), systemLine('Aftercare'))
+      setPartnerHeat(0)
+      setUserHeat(0)
+      push(youLine(profile.limits.safeword), aiLine(onSafeword()), systemLine('Kom ned'))
       dropMedia()
       setPhase('aftercare')
       return
@@ -598,13 +685,17 @@ export default function App() {
     if (kind === 'close') {
       setNear('close')
       setRunning(false)
-      push(youLine('Tæt på'), aiLine(onClose(profile)))
+      setPartnerHeat((h) => Math.min(100, h + 8))
+      setUserHeat((h) => Math.min(100, h + 10))
+      push(youLine('Næsten'), aiLine(onClose(profile)))
       return
     }
     if (kind === 'too') {
       setBodyOpen(false)
       setNear('too_much')
       setRunning(false)
+      setPartnerHeat((h) => Math.max(0, h - 12))
+      setUserHeat((h) => Math.max(0, h - 8))
       push(youLine('For meget'), aiLine(onTooMuch(profile)))
       return
     }
@@ -612,11 +703,13 @@ export default function App() {
       setNear('ok')
       setCycle((c) => c + 1)
       setRunning(true)
+      setPartnerHeat((h) => Math.min(100, h + 6))
       push(youLine('Ok — igen'), aiLine(onOk(profile, cycle + 1)))
       return
     }
     if (kind === 'deny') {
       setRunning(false)
+      setPartnerHeat((h) => Math.max(0, h - 10))
       push(youLine('Må jeg?'), aiLine(onDeny(profile)))
       return
     }
@@ -662,6 +755,8 @@ export default function App() {
         profile: profileWithCatalog(profile, contentCatalog),
         near,
         cycle,
+        partnerHeat,
+        userHeat,
         lines,
         text,
         intent,
@@ -721,6 +816,8 @@ export default function App() {
       )
       return
     }
+    setPartnerHeat((h) => Math.min(100, h + 7))
+    if (profile.playMode === 'mutual') setUserHeat((h) => Math.min(100, h + 4))
     await sendAiRequest(visible, 'touch', visible, zone.id)
   }
 
@@ -735,6 +832,8 @@ export default function App() {
     if (aiThinking) return
     setNear('close')
     setRunning(false)
+    setUserHeat(100)
+    setPartnerHeat((h) => Math.min(100, profile.playMode === 'mutual' ? 100 : h + 18))
     await sendAiRequest('Jeg kommer nu', 'climax', 'Jeg kommer')
   }
 
@@ -1258,19 +1357,35 @@ export default function App() {
               className={profile.role === r ? 'chip on' : 'chip'}
               onClick={() => setProfile({ ...profile, role: r })}
             >
-              {r === 'domme' ? 'Domme' : 'Slave'}
+              {r === 'domme' ? 'Jeg styrer' : 'Jeg adlyder'}
             </button>
           ))}
         </div>
 
+
+        <h2>Leg</h2>
+        <div className="row">
+          {([
+            ['oneway', 'Én vej'],
+            ['mutual', 'Gensidig'],
+          ] as Array<[PlayMode, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.playMode === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, playMode: id })}>{title}</button>
+          ))}
+        </div>
+        <p className="hint">
+          {profile.playMode === 'mutual'
+            ? 'I rører begge. Partneren reagerer på sin egen bar og på din.'
+            : 'Du bliver styret eller styrer. Partnerens krop er i fokus.'}
+        </p>
+
         <h2>Din krop i chatten</h2>
         <p className="hint">
-          Bruges kun til at tilpasse svarene fra “Tæt på” og “Jeg kommer”. Valget siger ikke noget om dit køn.
+          Så “Næsten” og “Jeg kommer” rammer pik eller fisse. Det er ikke dit køn — bare kroppen i legen.
         </p>
         <div className="row">
           {([
-            { id: 'penis' as UserAnatomy, title: 'Penis' },
-            { id: 'vulva' as UserAnatomy, title: 'Vulva' },
+            { id: 'penis' as UserAnatomy, title: 'Pik' },
+            { id: 'vulva' as UserAnatomy, title: 'Fisse' },
           ]).map((item) => (
             <button
               key={item.id}
@@ -1279,6 +1394,31 @@ export default function App() {
             >
               {item.title}
             </button>
+          ))}
+        </div>
+
+
+        <h2>Jeg er</h2>
+        <div className="row">
+          {([
+            ['unset', 'Siger det ikke'],
+            ['woman', 'Kvinde'],
+            ['man', 'Mand'],
+            ['nonbinary', 'Nonbinær'],
+          ] as Array<[UserGender, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.userGender === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, userGender: id })}>{title}</button>
+          ))}
+        </div>
+
+        <h2>Jeg vil have</h2>
+        <div className="row">
+          {([
+            ['women', 'Kvinder'],
+            ['men', 'Mænd'],
+            ['both', 'Begge'],
+            ['switch', 'Skifter'],
+          ] as Array<[Attraction, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.attraction === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, attraction: id })}>{title}</button>
           ))}
         </div>
 
@@ -1295,7 +1435,7 @@ export default function App() {
           ))}
         </div>
 
-        <h2>NSFW</h2>
+        <h2>Fræk</h2>
         <button
           className={profile.nsfw ? 'chip on' : 'chip'}
           disabled={!currentPlan.nsfw}
@@ -1308,8 +1448,8 @@ export default function App() {
           }
         >
           {!currentPlan.nsfw
-            ? 'NSFW kræver Solo eller Plus'
-            : profile.nsfw ? 'NSFW slået til — nøgen og direkte' : 'NSFW slået fra — tøjet på'}
+            ? 'Fræk kræver Solo eller Plus'
+            : profile.nsfw ? 'Fræk slået til — nøgen, pik, fisse, røv' : 'Fræk slået fra — tøjet på'}
         </button>
         <p className="hint">
           Fra: pænere sprog og påklædt figur. Til: kønsdele, nøgenhed og frække ordrer. Stadig kun voksne.
@@ -1324,7 +1464,7 @@ export default function App() {
               disabled={look === 'nsfw' && !currentPlan.nsfw}
               onClick={() => setProfile({ ...profile, look })}
             >
-              {look === 'clothed' ? 'Påklædt' : look === 'fetish' ? 'Fetish tøj' : 'Fræk / NSFW'}
+              {look === 'clothed' ? 'Tøjet på' : look === 'fetish' ? 'Sele og læder' : 'Nøgen / fræk'}
             </button>
           ))}
         </div>
@@ -1337,6 +1477,22 @@ export default function App() {
         <p className="hint">
           “Skab AI-partner” bruger billedmodellen, som admin har valgt til scenen. Hud og krop er kun figurens udseende.
         </p>
+
+
+        <h2>Erhverv / uniform</h2>
+        <p className="hint">Voksne roller. Underviser er universitet — aldrig skole eller mindreårige.</p>
+        <div className="row">
+          {PROFESSIONS.map((job) => (
+            <button
+              key={job.id}
+              type="button"
+              className={profile.profession === job.id ? 'chip on' : 'chip'}
+              onClick={() => setProfile({ ...profile, profession: job.id })}
+            >
+              {job.title}
+            </button>
+          ))}
+        </div>
 
         <h2>Krop</h2>
         <div className="row">
@@ -1366,7 +1522,7 @@ export default function App() {
 
         {profile.figure === 'mistress' && (
           <>
-            <h2>Bryster</h2>
+            <h2>Patter</h2>
             <div className="row">
               {(['small', 'medium', 'large'] as Breasts[]).map((b) => (
                 <button
@@ -1383,7 +1539,7 @@ export default function App() {
 
         {profile.figure === 'master' && (
           <>
-            <h2>Penis</h2>
+            <h2>Pik</h2>
             <div className="row">
               {(['average', 'large', 'very_large'] as Penis[]).map((p) => (
                 <button
@@ -1391,12 +1547,84 @@ export default function App() {
                   className={profile.penis === p ? 'chip on' : 'chip'}
                   onClick={() => setProfile({ ...profile, penis: p })}
                 >
-                  {p === 'average' ? 'Almindelig' : p === 'large' ? 'Stor' : 'Meget stor'}
+                  {p === 'average' ? 'Almindelig pik' : p === 'large' ? 'Tyk pik' : 'Kraftig pik'}
                 </button>
               ))}
             </div>
           </>
         )}
+
+
+        <h2>Hår</h2>
+        <div className="row">
+          {([['blonde', 'Blond'], ['brown', 'Brunt'], ['black', 'Sort'], ['red', 'Rødt'], ['dark', 'Mørkt'], ['grey', 'Gråt']] as Array<[HairColor, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.hairColor === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, hairColor: id })}>{title}</button>
+          ))}
+        </div>
+        <div className="row">
+          {([['short', 'Kort'], ['shoulder', 'Skulder'], ['long', 'Langt'], ['bun', 'Opsat']] as Array<[HairLength, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.hairLength === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, hairLength: id })}>{title}</button>
+          ))}
+        </div>
+        <h2>Øjne</h2>
+        <div className="row">
+          {([['brown', 'Brune'], ['green', 'Grønne'], ['blue', 'Blå'], ['grey', 'Grå']] as Array<[EyeColor, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.eyes === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, eyes: id })}>{title}</button>
+          ))}
+        </div>
+        {profile.figure === 'mistress' && (
+          <>
+            <h2>Makeup</h2>
+            <div className="row">
+              {([['none', 'Ingen'], ['soft', 'Blød'], ['heavy', 'Tyk'], ['smudged', 'Sløset']] as Array<[Makeup, string]>).map(([id, title]) => (
+                <button key={id} type="button" className={profile.makeup === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, makeup: id })}>{title}</button>
+              ))}
+            </div>
+          </>
+        )}
+        {profile.figure === 'master' && (
+          <>
+            <h2>Skæg</h2>
+            <div className="row">
+              {([['none', 'Glat'], ['stubble', 'Stubbe'], ['beard', 'Skæg']] as Array<[FacialHair, string]>).map(([id, title]) => (
+                <button key={id} type="button" className={profile.facialHair === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, facialHair: id })}>{title}</button>
+              ))}
+            </div>
+          </>
+        )}
+        <h2>Numse</h2>
+        <div className="row">
+          {([['small', 'Lille'], ['round', 'Rund'], ['large', 'Stor og blød']] as Array<[AssSize, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.ass === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, ass: id })}>{title}</button>
+          ))}
+        </div>
+        <h2>Hofter</h2>
+        <div className="row">
+          {([['narrow', 'Smal'], ['soft', 'Blød'], ['wide', 'Bred']] as Array<[HipSize, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.hips === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, hips: id })}>{title}</button>
+          ))}
+        </div>
+        <h2>Nedenunder</h2>
+        <div className="row">
+          {([['shaved', 'Glatbarberet'], ['trimmed', 'Trimmet'], ['natural', 'Naturlig']] as Array<[PubicStyle, string]>).map(([id, title]) => (
+            <button key={id} type="button" className={profile.pubic === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, pubic: id })}>{title}</button>
+          ))}
+        </div>
+        <h2>Detaljer</h2>
+        <div className="row">
+          <button type="button" className={profile.freckles ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, freckles: !profile.freckles })}>Fregner</button>
+          <button type="button" className={profile.tattoos ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, tattoos: !profile.tattoos })}>Tatoveringer</button>
+          <button type="button" className={profile.wet ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, wet: !profile.wet })}>Våd hud</button>
+        </div>
+        <label className="field">
+          Skriv selv
+          <input
+            value={profile.lookWish}
+            maxLength={180}
+            placeholder="Fx rød læbestift, slange-tatovering på lår, gennemboret navle"
+            onChange={(e) => setProfile({ ...profile, lookWish: e.target.value })}
+          />
+        </label>
 
         <section className="partner-image-builder" aria-live="polite">
           <div className={profile.partnerImageUrl ? 'generated-partner-image' : 'generated-partner-image empty'}>
@@ -1445,6 +1673,14 @@ export default function App() {
                   Slet favorit
                 </button>
               )}
+              <button
+                type="button"
+                className="ghost"
+                disabled={!profile.partnerImageUrl}
+                onClick={() => void saveImageToDevice(profile.partnerImageUrl, `${profile.figure}.png`)}
+              >
+                Gem til telefon
+              </button>
             </div>
             <small>{imageGenerationsLeft} figurbilleder tilbage</small>
             <p className="hint">Favoritten gemmes kun på denne enhed og bruger ikke et nyt billede.</p>
@@ -1536,7 +1772,29 @@ export default function App() {
           </div>
         </details>
 
-        <h2>Fetish</h2>
+        
+        <h2>Ord chatten må bruge</h2>
+        <label className="field">
+          Plus-liste
+          <input
+            value={profile.likeWords}
+            maxLength={200}
+            placeholder="Fx god pige, sprøjt, slik, min røv"
+            onChange={(e) => setProfile({ ...profile, likeWords: e.target.value })}
+          />
+        </label>
+        <label className="field">
+          Minus-liste — brug aldrig
+          <input
+            value={profile.banWords}
+            maxLength={200}
+            placeholder="Fx luder, pattebarn, skolesprog"
+            onChange={(e) => setProfile({ ...profile, banWords: e.target.value })}
+          />
+        </label>
+        <p className="hint">Adskil med komma. Minus slår altid plus. Safeword og 18+-regler kan ikke slås fra.</p>
+
+<h2>Fetish</h2>
         <div className="grid">
           {contentCatalog.fetishes.filter((item) => item.enabled).map((item) => {
             const lockedPack = !item.free && !profile.unlocked.includes(item.id)
@@ -1660,19 +1918,40 @@ export default function App() {
   const userChatName = profile.chatName.trim() || 'Dig'
 
   return (
-    <main className="shell session" data-running={running}>
+    <main className="shell session" data-running={running} data-stage={stageOpen}>
+      {stageOpen && profile.partnerImageUrl && (
+        <section className="stage" aria-label={`${partnerName} i stort billede`}>
+          <button type="button" className="stage-hit" onClick={() => setStageOpen(false)}>
+            <img src={profile.partnerImageUrl} alt={`AI-partneren ${partnerName}`} />
+          </button>
+          <div className="stage-tools">
+            <button type="button" className="ghost" onClick={() => void saveImageToDevice(profile.partnerImageUrl, `${partnerName.toLowerCase()}.png`)}>Gem billede</button>
+            <button type="button" className="ghost" onClick={() => setStageOpen(false)}>Lille visning</button>
+            {saveNotice && <small className="stage-note">{saveNotice}</small>}
+          </div>
+        </section>
+      )}
       <header className="partner-card">
-        <div className={profile.partnerImageUrl ? 'partner-portrait' : 'partner-portrait empty'}>
+        <button
+          type="button"
+          className={profile.partnerImageUrl ? 'partner-portrait' : 'partner-portrait empty'}
+          disabled={!profile.partnerImageUrl}
+          onClick={() => {
+            if (!profile.partnerImageUrl) return
+            setBodyOpen(false)
+            setStageOpen((open) => !open)
+          }}
+        >
           {profile.partnerImageUrl ? (
             <img src={profile.partnerImageUrl} alt={`AI-partneren ${partnerName}`} />
           ) : (
             <span aria-label="Partnerbillede er ikke oprettet endnu">{partnerName.slice(0, 1)}</span>
           )}
-        </div>
+        </button>
         <div className="partner-details">
           <span className="partner-status"><i /> AI-partner</span>
           <strong>{partnerName}</strong>
-          <small>{activeScene?.title || 'Privat chat'} · {profile.nsfw ? 'NSFW' : 'SFW'} · cyklus {cycle}</small>
+          <small>{activeScene?.title || 'Privat chat'} · {profile.nsfw ? 'Fræk' : 'Tøjet på'} · cyklus {cycle}</small>
           <small className="privacy-status">
             {profile.privacyMode === 'private' ? 'Privat · gemmes ikke' : 'Gemmes kun på denne enhed'}
           </small>
@@ -1682,20 +1961,29 @@ export default function App() {
           )}
         </div>
         <div className="chat-tools">
-          <button
-            type="button"
-            className={bodyOpen ? 'note-button active' : 'note-button'}
-            aria-expanded={bodyOpen}
-            onClick={() => setBodyOpen((open) => !open)}
-          >
-            {bodyOpen ? 'Luk krop' : 'Rør krop'}
-          </button>
           <button className="note-button" onClick={panic}>Noter</button>
           <button className="safe" onClick={() => tickSession('safe')}>
             {profile.limits.safeword}
           </button>
         </div>
       </header>
+
+      <section className="heat-board" aria-label="Hvor tæt I er på at komme">
+        <div className="heat-row">
+          <span>{partnerName}</span>
+          <div className="heat-track"><i style={{ width: `${partnerHeat}%` }} /></div>
+          <em>{partnerHeat}</em>
+        </div>
+        <div className="heat-row">
+          <span>Dig</span>
+          <div className="heat-track user"><i style={{ width: `${userHeat}%` }} /></div>
+          <em>{userHeat}</em>
+          <div className="heat-adjust">
+            <button type="button" onClick={() => setUserHeat((h) => Math.max(0, h - 8))}>−</button>
+            <button type="button" onClick={() => setUserHeat((h) => Math.min(100, h + 8))}>+</button>
+          </div>
+        </div>
+      </section>
 
       {bodyOpen && (
         <section className="body-board" aria-label="Berør AI-partnerens krop">
@@ -1778,6 +2066,9 @@ export default function App() {
             )}
             <div className="preview-footer">
           <span>{media.kind === 'image' && aiIsConfigured() ? 'Sendt til privat billedanalyse' : 'Kun på din telefon'}</span>
+              {media.kind === 'image' && (
+                <button type="button" onClick={() => void saveImageToDevice(media.url, 'stay-chatbillede.png')}>Gem</button>
+              )}
               <button type="button" onClick={dropMedia}>Skjul</button>
             </div>
           </div>
@@ -1786,19 +2077,27 @@ export default function App() {
       </div>
 
       <div className="chat-bottom">
+        <button
+          type="button"
+          className={bodyOpen ? 'body-dock on' : 'body-dock'}
+          aria-expanded={bodyOpen}
+          onClick={() => setBodyOpen((open) => !open)}
+        >
+          {bodyOpen ? 'Luk krop' : 'Rør kroppen'}
+        </button>
         <div className="task-request">
           <button type="button" disabled={aiThinking} onClick={() => void requestTask()}>
-            {aiThinking ? 'Partneren tænker…' : 'Giv mig en opgave'}
+            {aiThinking ? 'Venter på kommando…' : 'Giv mig en ordre'}
           </button>
-          <span>Opgaven bygger på scenen og den aktuelle chat.</span>
+          <span>Ordren passer til scenen, din krop og dit legetøj.</span>
         </div>
         <div className="session-actions" aria-label="Hurtige scenevalg">
-          <button disabled={aiThinking} onClick={() => void sendCloseMoment()}>Tæt på</button>
+          <button disabled={aiThinking} onClick={() => void sendCloseMoment()}>Næsten</button>
           <button className="finish" disabled={aiThinking} onClick={() => void sendClimaxMoment()}>Jeg kommer</button>
           <button onClick={() => tickSession('ok')}>Igen</button>
           <button onClick={() => tickSession('too')}>For meget</button>
           <button onClick={() => tickSession('deny')}>Nægt</button>
-          <button className="finish" onClick={() => tickSession('finish')}>Aftercare</button>
+          <button className="finish" onClick={() => tickSession('finish')}>Hold mig</button>
         </div>
 
         <form

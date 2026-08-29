@@ -1,16 +1,48 @@
 export type Role = 'domme' | 'slave'
+export type PlayMode = 'oneway' | 'mutual'
 export type Figure = 'master' | 'mistress'
 export type Look = 'clothed' | 'fetish' | 'nsfw'
 export type Body = 'slim' | 'athletic' | 'solid'
 export type Skin = 'light' | 'olive' | 'brown' | 'dark'
 export type Breasts = 'small' | 'medium' | 'large'
 export type Penis = 'average' | 'large' | 'very_large'
+export type HairColor = 'blonde' | 'brown' | 'black' | 'red' | 'dark' | 'grey'
+export type HairLength = 'short' | 'shoulder' | 'long' | 'bun'
+export type EyeColor = 'brown' | 'green' | 'blue' | 'grey'
+export type Makeup = 'none' | 'soft' | 'heavy' | 'smudged'
+export type FacialHair = 'none' | 'stubble' | 'beard'
+export type AssSize = 'small' | 'round' | 'large'
+export type HipSize = 'narrow' | 'soft' | 'wide'
+export type PubicStyle = 'shaved' | 'trimmed' | 'natural'
+export type ProfessionId =
+  | 'none'
+  | 'doctor'
+  | 'nurse'
+  | 'teacher'
+  | 'secretary'
+  | 'police'
+  | 'lawyer'
+  | 'boss'
+  | 'bartender'
+  | 'trainer'
+  | 'flight'
+  | 'maid'
+  | 'mechanic'
+  | 'firefighter'
+  | 'soldier'
+  | 'chef'
+  | 'librarian'
+  | 'photographer'
+  | 'pilot'
+  | 'paramedic'
 export type Personality = 'warm' | 'cold' | 'tease' | 'strict'
 export type Intensity = 'soft' | 'medium' | 'hard'
 export type Phase = 'age' | 'login' | 'admin' | 'rules' | 'setup' | 'pay' | 'session' | 'aftercare' | 'decoy'
 export type PrivacyMode = 'private' | 'device'
 export type NotificationStyle = 'discreet' | 'explicit'
 export type UserAnatomy = 'penis' | 'vulva'
+export type UserGender = 'woman' | 'man' | 'nonbinary' | 'unset'
+export type Attraction = 'women' | 'men' | 'both' | 'switch'
 
 export type FetishId = string
 
@@ -31,13 +63,31 @@ export interface Profile {
   notificationStyle: NotificationStyle
   sceneId: string
   role: Role
+  playMode: PlayMode
   figure: Figure
   userAnatomy: UserAnatomy
+  userGender: UserGender
+  attraction: Attraction
+  likeWords: string
+  banWords: string
   look: Look
+  profession: ProfessionId
   body: Body
   skin: Skin
   breasts: Breasts
   penis: Penis
+  hairColor: HairColor
+  hairLength: HairLength
+  eyes: EyeColor
+  makeup: Makeup
+  facialHair: FacialHair
+  ass: AssSize
+  hips: HipSize
+  pubic: PubicStyle
+  freckles: boolean
+  tattoos: boolean
+  wet: boolean
+  lookWish: string
   personality: Personality
   customWish: string
   nsfw: boolean
