@@ -57,8 +57,10 @@ npx firebase-tools deploy --only firestore:rules
 Vælg det samme Firebase-projekt. Reglerne giver verificerede brugere læseadgang
 til `scenePresets` og de centrale forbrugsgrænser, mens kun
 `teamstayapp@gmail.com` må ændre dem. Brugeren kan kun læse egne rettigheder og
-egne forbrugsposter. Workeren registrerer forbruget med brugerens
-Firebase-session. Admin kan læse den samlede modelstatistik og godkende køb.
+egne forbrugsposter. En ny bruger må kun oprette en sikker Free-standardkonto;
+plan, status, billedbonus og udløb kan derefter kun ændres af admin. Workeren
+registrerer forbruget med brugerens Firebase-session. Admin kan læse den
+samlede kundeliste og modelstatistik samt godkende køb.
 Hvis adminmailen ændres, skal den også ændres i `firestore.rules`.
 
 Ved første login åbner admin fanen **Prompts** og trykker **Udgiv til alle**.

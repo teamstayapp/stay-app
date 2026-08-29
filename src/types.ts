@@ -10,32 +10,12 @@ export type Intensity = 'soft' | 'medium' | 'hard'
 export type Phase = 'age' | 'login' | 'admin' | 'rules' | 'setup' | 'pay' | 'session' | 'aftercare' | 'decoy'
 export type PrivacyMode = 'private' | 'device'
 export type NotificationStyle = 'discreet' | 'explicit'
+export type UserAnatomy = 'penis' | 'vulva'
 
-export type FetishId =
-  | 'edge'
-  | 'power'
-  | 'aftercare'
-  | 'cei'
-  | 'milking'
-  | 'joi'
-  | 'chastity'
-  | 'humiliation'
-  | 'femdom'
-  | 'anal'
-  | 'worship'
-  | 'roleskin'
+export type FetishId = string
 
 export type Nearness = 'ok' | 'close' | 'too_much'
-export type EquipmentId =
-  | 'lube'
-  | 'vibrator'
-  | 'sleeve'
-  | 'dildo'
-  | 'plug'
-  | 'strap_on'
-  | 'soft_cuffs'
-  | 'blindfold'
-  | 'chastity'
+export type EquipmentId = string
 
 export interface Limits {
   safeword: string
@@ -52,6 +32,7 @@ export interface Profile {
   sceneId: string
   role: Role
   figure: Figure
+  userAnatomy: UserAnatomy
   look: Look
   body: Body
   skin: Skin
@@ -64,10 +45,13 @@ export interface Profile {
   fetishes: FetishId[]
   equipment: EquipmentId[]
   customEquipment: string
+  fetishLabels?: string[]
+  equipmentLabels?: string[]
+  equipmentEntries?: Array<{ id: string; label: string }>
+  catalogPrompt?: string
   limits: Limits
   unlocked: FetishId[]
   plan: 'free' | 'solo' | 'plus'
-  imagesLeft: number
   extraPacks: boolean
 }
 

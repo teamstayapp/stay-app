@@ -45,7 +45,6 @@ Den besluttede rækkefølge og vurdering ligger i [ROADMAP.md](ROADMAP.md).
 ## Produkt og administration
 
 - Betaling og abonnement via en voksen-venlig betalingsløsning.
-- Central kundeliste baseret på alle Firebase-brugere, ikke kun lokalt kendte konti.
 - To adresser eller tydeligt adskilte indgange til brugerapp og admin.
 - Automatisk beregning af modelpris i kroner ud fra Venices løbende priser.
 - Flere aktive scene- og temapakker, styret centralt fra admin.

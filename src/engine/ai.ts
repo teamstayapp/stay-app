@@ -1,4 +1,5 @@
 import type { Line, Nearness, Profile } from '../types'
+import type { BodyZoneId } from './bodyZones'
 import { getFirebaseAuth } from './firebase'
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '')
@@ -9,7 +10,8 @@ interface AskAiInput {
   cycle: number
   lines: Line[]
   text: string
-  intent?: 'chat' | 'task'
+  intent?: 'chat' | 'task' | 'touch' | 'close' | 'climax'
+  touchZone?: BodyZoneId
   signal?: AbortSignal
 }
 
@@ -26,7 +28,16 @@ export function aiIsConfigured(): boolean {
   return Boolean(API_URL)
 }
 
-export async function askAi({ profile, near, cycle, lines, text, intent = 'chat', signal }: AskAiInput): Promise<string> {
+export async function askAi({
+  profile,
+  near,
+  cycle,
+  lines,
+  text,
+  intent = 'chat',
+  touchZone,
+  signal,
+}: AskAiInput): Promise<string> {
   if (!API_URL) throw new Error('AI er ikke konfigureret endnu')
 
   const messages = lines
@@ -52,6 +63,7 @@ export async function askAi({ profile, near, cycle, lines, text, intent = 'chat'
         chatName: profile.chatName,
         role: profile.role,
         figure: profile.figure,
+        userAnatomy: profile.userAnatomy,
         look: profile.look,
         body: profile.body,
         skin: profile.skin,
@@ -63,12 +75,16 @@ export async function askAi({ profile, near, cycle, lines, text, intent = 'chat'
         nsfw: profile.nsfw,
         fetishes: profile.fetishes,
         equipment: profile.equipment,
+        fetishLabels: profile.fetishLabels,
+        equipmentLabels: profile.equipmentLabels,
+        catalogPrompt: profile.catalogPrompt,
         customEquipment: profile.customEquipment,
         limits: profile.limits,
       },
       state: { near, cycle },
       sceneId: profile.sceneId,
       intent,
+      touchZone,
       messages,
     }),
   })
@@ -169,6 +185,9 @@ function imageProfile(profile: Profile) {
     nsfw: profile.nsfw,
     fetishes: profile.fetishes,
     equipment: profile.equipment,
+    fetishLabels: profile.fetishLabels,
+    equipmentLabels: profile.equipmentLabels,
+    catalogPrompt: profile.catalogPrompt,
     customEquipment: profile.customEquipment,
     limits: profile.limits,
   }

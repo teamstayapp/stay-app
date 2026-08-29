@@ -1,5 +1,31 @@
 # Stay — scenevalg, prompts og modeller
 
+## Udstyr og temaer
+
+Under **Admin → Indhold** kan admin ændre de felter, der vises i brugerens
+opsætning:
+
+- **Udstyr:** navn hos brugeren, gruppe, ordlyd sendt til AI, mindste plan og
+  aktiv/inaktiv.
+- **Temaer/fetish:** navn, kort beskrivelse, AI-instruktion, gratis/betalt og
+  aktiv/inaktiv.
+- Nye felter får et stabilt ID automatisk.
+- **Deaktiver** skjuler feltet, men beholder opsætningen til senere.
+- **Slet** fjerner feltet fra kataloget, når der trykkes **Gem og udgiv til alle**.
+
+Udstyrets mindste plan kan være **Prøv**, **Solo** eller **Plus**. Workeren
+kontrollerer planen fra `userEntitlements/{uid}` og filtrerer udstyr igen på
+serveren. Et ændret browserfelt kan derfor ikke give Free/Solo adgang til
+Plus-udstyr.
+
+Kataloget ligger i Firestore som `contentCatalog/default`. Appen lytter live på
+dokumentet, så der skal ikke bygges en ny ZIP for hver efterfølgende tekstændring.
+Den første version med funktionen og de opdaterede Firestore-regler skal dog
+uploades/deployes én gang.
+
+AI-instruktionerne supplerer scenens systemprompt. De kan ikke fjerne Workerens
+faste krav om voksne, samtykke og sikkerhed.
+
 ## Brugerflow
 
 Brugeren vælger først en sceneprofil. Basisvalgene er:
@@ -19,7 +45,9 @@ lægger de faste voksen-, samtykke- og sikkerhedsregler ovenpå og kalder AI'en.
 
 Den endelige tekstprompt bliver sammensat for hver besked af:
 
-- scenens centrale systemprompt fra admin
+- scenens bløde grundprompt fra admin
+- NSFW-laget, når NSFW er slået til og Firestore-planen er Solo eller Plus
+- Plus-laget, kun når NSFW er slået til og Firestore-planen er Plus
 - rolle og valgt fiktiv figur
 - stil, krop, hud og det relevante anatomivalg
 - personlighed, intensitet og NSFW-valg
@@ -48,13 +76,19 @@ Firestore. Beskeder sendes stadig til AI-tjenesten for at kunne blive besvaret.
 
 ## Admin
 
-Admin åbner **Admin → Prompts**. Her kan hver scene:
+Admin åbner **Admin → Prompts**. Hver scene har tre fold-ud-lag:
+
+- **Blød / SFW:** bruges altid som grundlag og er det eneste lag på Prøv.
+- **Fræk / NSFW:** lægges ovenpå for Solo og Plus, når NSFW er slået til.
+- **Plus:** lægges ovenpå de to andre kun for Plus + NSFW.
+
+Hvert lag har sin egen startbesked, systemprompt, opgaveprompt og billedprompt.
+Herudover kan hver scene:
 
 - slås til eller fra
 - omdøbes
 - få ny kort beskrivelse
-- få ny startbesked
-- få redigeret systemprompt og billedprompt
+- få nye startbeskeder og prompts for alle tre lag
 - vælge tekstmodel og billedmodel uafhængigt
 
 De faste sikkerhedsregler ligger i Workeren og kan ikke redigeres fra panelet.

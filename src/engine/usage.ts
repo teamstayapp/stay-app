@@ -7,6 +7,7 @@ import {
   runTransaction,
   serverTimestamp,
   setDoc,
+  Timestamp,
 } from 'firebase/firestore'
 import { getFirebaseDb } from './firebase'
 import { ADDONS, PLANS, type AddOnId, type PlanId } from './plans'
@@ -39,10 +40,22 @@ export interface UsageSnapshot {
 
 export interface Entitlement {
   plan: PlanId
+  status: EntitlementStatus
+  expiresAt: string | null
   extraPacks: boolean
   bonusPeriod: string
   bonusImageGenerations: number
   bonusImageAnalyses: number
+}
+
+export type EntitlementStatus = 'active' | 'paused' | 'cancelled' | 'churned'
+
+export interface CustomerAccount extends Entitlement {
+  id: string
+  email: string
+  chatName: string
+  createdAt: string | null
+  lastSeen: string | null
 }
 
 export interface PurchaseRequest {
@@ -156,26 +169,59 @@ export async function publishUsageConfig(value: UsageConfig): Promise<void> {
 }
 
 export async function setUserEntitlementPlan(uid: string, plan: PlanId): Promise<void> {
+  await updateUserEntitlement(uid, { plan })
+}
+
+export async function updateUserEntitlement(
+  uid: string,
+  patch: Partial<Pick<Entitlement, 'plan' | 'status' | 'expiresAt' | 'extraPacks' | 'bonusImageGenerations' | 'bonusImageAnalyses'>>,
+): Promise<void> {
   const db = getFirebaseDb()
   if (!db) throw new Error('Firebase er ikke klar.')
-  await setDoc(doc(db, 'userEntitlements', uid), { plan, updatedAt: serverTimestamp() }, { merge: true })
+  const value: Record<string, unknown> = { ...patch, updatedAt: serverTimestamp() }
+  if ('expiresAt' in patch) {
+    value.expiresAt = patch.expiresAt ? Timestamp.fromDate(new Date(patch.expiresAt)) : null
+  }
+  if ('bonusImageGenerations' in patch || 'bonusImageAnalyses' in patch) {
+    value.bonusPeriod = currentUsagePeriod()
+  }
+  await setDoc(doc(db, 'userEntitlements', uid), value, { merge: true })
 }
 
 export async function ensureUserProfile(uid: string, email: string): Promise<void> {
   const db = getFirebaseDb()
   if (!db) return
   const reference = doc(db, 'userProfiles', uid)
-  const snapshot = await getDoc(reference)
+  const entitlementReference = doc(db, 'userEntitlements', uid)
+  const [snapshot, entitlementSnapshot] = await Promise.all([
+    getDoc(reference),
+    getDoc(entitlementReference),
+  ])
   if (snapshot.exists()) {
     await setDoc(reference, { email, lastSeen: serverTimestamp() }, { merge: true })
   } else {
     await setDoc(reference, { email, chatName: '', createdAt: serverTimestamp(), lastSeen: serverTimestamp() })
+  }
+  if (!entitlementSnapshot.exists()) {
+    await setDoc(entitlementReference, {
+      plan: 'free',
+      status: 'active',
+      expiresAt: null,
+      extraPacks: false,
+      bonusPeriod: currentUsagePeriod(),
+      bonusImageGenerations: 0,
+      bonusImageAnalyses: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   }
 }
 
 export function observeEntitlement(uid: string, callback: (value: Entitlement) => void): () => void {
   const fallback: Entitlement = {
     plan: 'free',
+    status: 'active',
+    expiresAt: null,
     extraPacks: false,
     bonusPeriod: currentUsagePeriod(),
     bonusImageGenerations: 0,
@@ -193,6 +239,8 @@ export function observeEntitlement(uid: string, callback: (value: Entitlement) =
       const plan = data?.plan === 'solo' || data?.plan === 'plus' ? data.plan : 'free'
       callback({
         plan,
+        status: entitlementStatus(data?.status),
+        expiresAt: timestampIso(data?.expiresAt),
         extraPacks: data?.extraPacks === true,
         bonusPeriod: typeof data?.bonusPeriod === 'string' ? data.bonusPeriod : currentUsagePeriod(),
         bonusImageGenerations: number(data?.bonusImageGenerations),
@@ -201,6 +249,65 @@ export function observeEntitlement(uid: string, callback: (value: Entitlement) =
     },
     () => callback(fallback),
   )
+}
+
+export function entitlementIsExpired(entitlement: Pick<Entitlement, 'plan' | 'expiresAt'>): boolean {
+  return entitlement.plan !== 'free' && Boolean(
+    entitlement.expiresAt && new Date(entitlement.expiresAt).getTime() <= Date.now(),
+  )
+}
+
+export function observeCustomerAccounts(callback: (rows: CustomerAccount[]) => void): () => void {
+  const db = getFirebaseDb()
+  if (!db) {
+    callback([])
+    return () => undefined
+  }
+  let profiles = new Map<string, Record<string, unknown>>()
+  let entitlements = new Map<string, Record<string, unknown>>()
+  const emit = () => {
+    const ids = new Set([...profiles.keys(), ...entitlements.keys()])
+    callback([...ids].map((id): CustomerAccount => {
+      const profile = profiles.get(id) || {}
+      const entitlement = entitlements.get(id) || {}
+      const plan = entitlement.plan === 'solo' || entitlement.plan === 'plus' ? entitlement.plan : 'free'
+      return {
+        id,
+        email: typeof profile.email === 'string' ? profile.email : '',
+        chatName: typeof profile.chatName === 'string' ? profile.chatName : '',
+        createdAt: timestampIso(profile.createdAt),
+        lastSeen: timestampIso(profile.lastSeen),
+        plan,
+        status: entitlementStatus(entitlement.status),
+        expiresAt: timestampIso(entitlement.expiresAt),
+        extraPacks: entitlement.extraPacks === true,
+        bonusPeriod: typeof entitlement.bonusPeriod === 'string' ? entitlement.bonusPeriod : currentUsagePeriod(),
+        bonusImageGenerations: number(entitlement.bonusImageGenerations),
+        bonusImageAnalyses: number(entitlement.bonusImageAnalyses),
+      }
+    }).sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || '')))
+  }
+  const stopProfiles = onSnapshot(collection(db, 'userProfiles'), (snapshot) => {
+    profiles = new Map(snapshot.docs.map((item) => [item.id, item.data()]))
+    emit()
+  }, () => callback([]))
+  const stopEntitlements = onSnapshot(collection(db, 'userEntitlements'), (snapshot) => {
+    entitlements = new Map(snapshot.docs.map((item) => [item.id, item.data()]))
+    emit()
+  }, () => callback([]))
+  return () => { stopProfiles(); stopEntitlements() }
+}
+
+function entitlementStatus(value: unknown): EntitlementStatus {
+  return value === 'paused' || value === 'cancelled' || value === 'churned' ? value : 'active'
+}
+
+function timestampIso(value: unknown): string | null {
+  if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
+    return value.toDate().toISOString()
+  }
+  if (typeof value === 'string' && !Number.isNaN(Date.parse(value))) return new Date(value).toISOString()
+  return null
 }
 
 export function observeUserUsage(uid: string, callback: (value: UsageSnapshot) => void): () => void {
@@ -305,7 +412,16 @@ export async function approvePurchase(request: PurchaseRequest): Promise<void> {
 
     if (request.type === 'plan') {
       const plan = request.productId === 'solo' || request.productId === 'plus' ? request.productId : 'free'
-      transaction.set(entitlementRef, { plan, updatedAt: serverTimestamp() }, { merge: true })
+      const currentExpiry = timestampIso(entitlement?.expiresAt)
+      const start = currentExpiry && new Date(currentExpiry).getTime() > Date.now()
+        ? new Date(currentExpiry).getTime()
+        : Date.now()
+      transaction.set(entitlementRef, {
+        plan,
+        status: 'active',
+        expiresAt: plan === 'free' ? null : Timestamp.fromDate(new Date(start + 30 * 24 * 60 * 60 * 1_000)),
+        updatedAt: serverTimestamp(),
+      }, { merge: true })
     } else {
       const addon = ADDONS.find((item) => item.id === request.productId)
       transaction.set(entitlementRef, {

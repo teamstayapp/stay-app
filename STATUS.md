@@ -13,7 +13,7 @@ Firma på kvittering: må hedde noget andet end Stay.
 
 - [x] 18+ og regelside
 - [x] Firebase-login / opret med localStorage-fallback
-- [x] Admin-panel (PC): kunder, plan, pause, opsig, churn
+- [x] Admin-panel (PC): centrale Firestore-kunder, plan, saldo, udløb, pause, opsig og churn
 - [x] Rolle, figur, krop, personlighed
 - [x] NSFW til/fra
 - [x] Edge-loop med skabelon-replikkker
@@ -38,6 +38,15 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] AI-modelstatistik med kald samt input- og outputtokens i admin
 - [x] Adminredigerbare grænser pr. plan, som gælder straks i Workeren
 - [x] Tilkøb og abonnement sendes til admin til manuel godkendelse
+- [x] Admin kan centralt tilføje, redigere, deaktivere og slette udstyr og temaer
+- [x] Admins navne, beskrivelser og temainstruktioner slår igennem hos alle brugere
+- [x] Tre promptlag pr. scene: Blød/SFW, Fræk/NSFW og serverlåst Plus
+- [x] Udvidet udstyrskatalog med grupper og mindste plan, redigerbart i admin
+- [x] Worker håndhæver både promptlag og udstyrsadgang ud fra Firestore-planen
+- [x] Interaktiv partnerkrop med forfra/bagfra-zoner og AI-reaktion i chatten
+- [x] Worker validerer kropszoner og håndhæver plan, NSFW, tema og sikkerhed
+- [x] Tæt på/Jeg kommer som særskilte AI-intents med valgfri brugeranatomi
+- [x] Lokalt partnerbillede som gratis favorit på den valgte enhed
 
 ---
 
@@ -59,6 +68,9 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [ ] Opdateret Worker med opgavehensigt, billedgenerering og vision deployet
 - [ ] Opdaterede Firestore-regler til forbrug og tilkøb udgivet
 - [ ] Ny Worker med serverhåndhævede forbrugsgrænser deployet
+- [ ] Ny Worker med planstyrede promptlag og udstyr deployet
+- [ ] Ny Worker med interaktiv kropsberøring deployet
+- [ ] Ny Worker med Tæt på/Jeg kommer-intents deployet
 - [ ] Rigtige mobil-pushbeskeder og tidsplanlægning i Cloudflare
 - [x] Figur via image-API, tæl `imagesLeft` ned i den aktive profil
 - [x] Centrale brugerrettigheder, forbrug og månedlige billedtilkøb i Firestore
@@ -67,9 +79,9 @@ Firma på kvittering: må hedde noget andet end Stay.
 
 ## Mangler før betalende kunder
 
-- [ ] Firestore er eneste sandhed for plan, saldo, pause, udløb og opsigelse
-- [ ] Worker afviser pausede, udløbne og lukkede konti
-- [ ] Central kundeliste med plan, sidste login, saldo og status
+- [x] Firestore er eneste sandhed for plan, saldo, pause, udløb og opsigelse
+- [x] Worker afviser pausede, udløbne og lukkede konti før Venice-kald
+- [x] Central kundeliste med plan, sidste login, saldo og status
 - [ ] Betaling (MobilePay / voksen-venlig processor)
 - [ ] Webhook → plan / opsig / churn i admin
 - [x] Glemt adgangskode

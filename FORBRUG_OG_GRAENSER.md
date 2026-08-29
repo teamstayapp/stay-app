@@ -24,8 +24,9 @@ Cloudflare Workeren.
 
 ## Håndhævelse
 
-Workeren læser brugerens plan, bonus og aktuelle forbrug, før den kontakter
-Venice. Hvis grænsen er nået, returneres status 429, og der udføres ikke et
+Workeren læser brugerens centrale plan, kontostatus, udløb, bonus og aktuelle
+forbrug, før den kontakter Venice. Pause/lukning/udløb returnerer status 403;
+opbrugt kvote returnerer status 429. I begge tilfælde udføres der ikke et
 betalingspligtigt AI-kald. Chat nulstilles efter UTC-dato. Billedgenerering og
 billedanalyse nulstilles ved en ny UTC-måned.
 
@@ -52,7 +53,8 @@ Ved godkendelse:
    tryk **Publish**.
 3. Cloudflare → `stay-api` → **Edit code**: erstat hele koden med
    `worker/stay-api-worker-manual.js` og tryk **Deploy**.
-4. Åbn Workerens `/health`. Svaret skal vise `"usageLimits":true`.
+4. Åbn Workerens `/health`. Svaret skal vise `"usageLimits":true` og
+   `"accountAccess":true`.
 5. Log ind som admin → **AI-forbrug** → kontrollér standardgrænserne og tryk
    **Gem grænser**.
 

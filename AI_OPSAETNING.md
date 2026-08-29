@@ -68,7 +68,7 @@ dem i Firebase, før den nye Worker testes. Se [FORBRUG_OG_GRAENSER.md](FORBRUG_
 
 ## Sikkerhed før offentlig test
 
-Workeren begrænser størrelse og historik og skjuler Venice-nøglen. CORS er
-begrænset til `https://teamstayapp.github.io`. Før bred offentlig lancering skal
-API'et desuden have rigtig brugerautentifikation og ratebegrænsning, så andre
-ikke kan bruge Worker-adressen på din regning.
+Workeren begrænser størrelse og historik, validerer Firebase-sessionen, tjekker
+central plan/status/udløb og skjuler Venice-nøglen. CORS er begrænset til
+`https://teamstayapp.github.io`. Før bred offentlig lancering mangler der stadig
+en kort burst-rate-limit pr. bruger/IP oven på dags- og månedsgrænserne.

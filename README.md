@@ -39,19 +39,30 @@ Se [FIREBASE_LOGIN.md](FIREBASE_LOGIN.md) for rigtigt login, e-mailbekræftelse
 og nulstilling af adgangskode.
 
 Se [PROMPT_ADMIN.md](PROMPT_ADMIN.md) for scenevalg, adminredigering af prompts
-og modelvalg.
+og modelvalg. Samme dokument beskriver også de centrale udstyrs- og temafelter
+under **Admin → Indhold**.
 
 Se [FORBRUG_OG_GRAENSER.md](FORBRUG_OG_GRAENSER.md) for AI-forbrug,
 abonnementsgrænser og manuelle tilkøb.
 
+Se [KONTO_I_FIRESTORE.md](KONTO_I_FIRESTORE.md) for central plan, billedsaldo,
+pause, udløb og Worker-blokering.
+
+Se [KROPSFUNKTION.md](KROPSFUNKTION.md) for den interaktive partnerkrop,
+AI-flowet og de faste sikkerhedsgrænser.
+
+Se [KLIMAKS_OG_FAVORIT.md](KLIMAKS_OG_FAVORIT.md) for **Tæt på**,
+**Jeg kommer**, brugerens anatomivalg og lokal billedfavorit.
+
 ## Konto
 
-Login bruger Firebase Authentication. Chatnavn og centrale scene-prompts ligger
-i Firestore. Private eller lokalt gemte chats håndteres på brugerens enhed.
+Login bruger Firebase Authentication. Plan, status, udløb, billedbonus,
+chatnavn og centrale scene-prompts ligger i Firestore. Private eller lokalt
+gemte chats håndteres på brugerens enhed.
 
 - Opret / log ind efter 18+
 - Adminmail styres med `VITE_ADMIN_EMAIL`
-- Admin: kunder, plan, pause, opsig, churn
+- Admin: centrale kunder, plan, billedsaldo, udløb, pause, opsig og churn
 
 ## Priser (husk)
 
@@ -74,6 +85,9 @@ Betaling: egen side, voksen-venlig processor / MobilePay — ikke App Store IAP.
 - Figurer: separat privat Venice-billedmodel valgt af admin pr. scene
 - Brugerbilleder: privat vision-analyse gennem Cloudflare Workeren
 - Opgaver: egen adminprompt pr. scene og den aktuelle chat som kontekst
+- Kropsberøring: validerede forfra/bagfra-zoner med en særskilt AI-hensigt
+- Klimaks: særskilte Tæt på/Jeg kommer-hensigter med servervalideret anatomi
+- Partnerfavorit: ét genereret billede kan genbruges lokalt uden nyt AI-kald
 - Nøgle kun på server
 
 ## Regler

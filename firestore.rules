@@ -16,15 +16,35 @@ service cloud.firestore {
       allow create, update, delete: if isStayAdmin();
     }
 
+    match /contentCatalog/{catalogId} {
+      allow read: if signedInAndVerified();
+      allow create, update, delete: if isStayAdmin();
+    }
+
     match /userProfiles/{userId} {
       allow read: if isStayAdmin() || (signedInAndVerified() && request.auth.uid == userId);
-      allow create, update: if signedInAndVerified() && request.auth.uid == userId;
+      allow create: if signedInAndVerified()
+        && request.auth.uid == userId
+        && request.resource.data.email == request.auth.token.email;
+      allow update: if signedInAndVerified()
+        && request.auth.uid == userId
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['email', 'chatName', 'lastSeen']);
       allow delete: if false;
     }
 
     match /userEntitlements/{userId} {
       allow read: if isStayAdmin() || (signedInAndVerified() && request.auth.uid == userId);
-      allow create, update: if isStayAdmin();
+      allow create: if isStayAdmin() || (signedInAndVerified()
+        && request.auth.uid == userId
+        && request.resource.data.plan == 'free'
+        && request.resource.data.status == 'active'
+        && request.resource.data.expiresAt == null
+        && request.resource.data.extraPacks == false
+        && request.resource.data.bonusImageGenerations == 0
+        && request.resource.data.bonusImageAnalyses == 0);
+      allow update: if isStayAdmin();
       allow delete: if false;
     }
 

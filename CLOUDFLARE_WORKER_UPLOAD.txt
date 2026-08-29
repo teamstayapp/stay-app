@@ -1,0 +1,28 @@
+STAY — OPDATER CLOUDFLARE WORKER
+
+1. Åbn Cloudflare → Workers & Pages → stay-api.
+2. Åbn Edit code.
+3. Åbn filen worker/stay-api-worker-manual.js fra denne pakke.
+4. Markér al gammel Worker-kode og erstat den med hele filens indhold.
+5. Tryk Deploy.
+6. Åbn:
+   https://stay-api.teamstayapp.workers.dev/health
+7. Kontrollér at svaret viser:
+   "ok": true
+   "venice": true
+
+Du skal ikke indsætte Venice-nøglen i kodefilen. Den skal fortsat ligge som
+Cloudflare-secret med navnet VENICE_API_KEY.
+
+Efter deploy:
+- Admin → Prompts → Gendan standard → Udgiv til alle
+- Admin → Indhold → Gem og udgiv til alle
+
+Test:
+- Free + NSFW-valg må stadig kun få det bløde lag.
+- Solo + NSFW får Fræk-laget.
+- Plus + NSFW får Fræk- og Plus-laget.
+- Start en chat, tryk Rør krop og vælg en zone. AI'en skal reagere på zonen.
+- Hals/nakke må aldrig give instruktioner om tryk eller kvælning.
+- Test Tæt på og Jeg kommer med både Penis og Vulva.
+- Free skal stadig få et ikke-eksplicit svar fra begge knapper.

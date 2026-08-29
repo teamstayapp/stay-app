@@ -17,9 +17,9 @@ import type {
   Profile,
   Role,
   Skin,
+  UserAnatomy,
 } from './types'
 import {
-  FETISH_META,
   aftercare,
   aiLine,
   defaultUnlocked,
@@ -41,11 +41,18 @@ import { currentAccount, logout, observeAccount, type Account } from './engine/a
 import { aiIsConfigured, analyzeImage, askAi, generatePartnerImage } from './engine/ai'
 import { AdminScreen, LoginScreen } from './screens/AuthScreens'
 import { isStandalone } from './pwa'
-import { availableScenes, DEFAULT_SCENES, observeScenes } from './engine/scenes'
+import { availableScenes, DEFAULT_SCENES, observeScenes, openingPromptForPlan } from './engine/scenes'
+import {
+  DEFAULT_CONTENT_CATALOG,
+  observeContentCatalog,
+  planCanUseContent,
+  type ContentCatalog,
+} from './engine/contentCatalog'
 import { observeChatName, saveChatName } from './engine/userProfile'
 import {
   DEFAULT_USAGE_CONFIG,
   currentUsagePeriod,
+  entitlementIsExpired,
   ensureUserProfile,
   limitsForPlan,
   observeEntitlement,
@@ -66,34 +73,36 @@ import {
   saveNotificationStyle,
   savePrivacyMode,
 } from './engine/sessionStore'
+import {
+  BODY_ZONES,
+  localTouchReply,
+  touchUserLine,
+  type BodyView,
+  type BodyZone,
+  type BodyZoneId,
+} from './engine/bodyZones'
+import {
+  clearFavoriteLook,
+  loadFavoriteLook,
+  saveFavoriteLook,
+  type FavoriteLook,
+} from './engine/favoriteImage'
+import { localClimaxReply, localCloseReply } from './engine/climax'
 import './App.css'
 
-const ALL: FetishId[] = [
-  'edge',
-  'power',
-  'aftercare',
-  'cei',
-  'milking',
-  'joi',
-  'chastity',
-  'humiliation',
-  'femdom',
-  'anal',
-  'worship',
-  'roleskin',
-]
-
-const EQUIPMENT: Array<{ id: EquipmentId; title: string }> = [
-  { id: 'lube', title: 'Glidecreme' },
-  { id: 'vibrator', title: 'Vibrator' },
-  { id: 'sleeve', title: 'Sleeve' },
-  { id: 'dildo', title: 'Dildo' },
-  { id: 'plug', title: 'Plug' },
-  { id: 'strap_on', title: 'Strap-on' },
-  { id: 'soft_cuffs', title: 'Bløde manchetter' },
-  { id: 'blindfold', title: 'Bind for øjnene' },
-  { id: 'chastity', title: 'Kyskhedsbur' },
-]
+function profileWithCatalog(profile: Profile, catalog: ContentCatalog): Profile {
+  const selectedFetishes = catalog.fetishes.filter((item) => item.enabled && profile.fetishes.includes(item.id))
+  const selectedEquipment = catalog.equipment.filter(
+    (item) => item.enabled && planCanUseContent(profile.plan, item) && profile.equipment.includes(item.id),
+  )
+  return {
+    ...profile,
+    fetishLabels: selectedFetishes.map((item) => item.title),
+    equipmentLabels: selectedEquipment.map((item) => item.prompt || item.title),
+    equipmentEntries: selectedEquipment.map((item) => ({ id: item.id, label: item.prompt || item.title })),
+    catalogPrompt: selectedFetishes.map((item) => item.prompt).filter(Boolean).join(' '),
+  }
+}
 
 const emptyProfile = (): Profile => ({
   chatName: '',
@@ -102,6 +111,7 @@ const emptyProfile = (): Profile => ({
   sceneId: 'soft-care',
   role: 'slave',
   figure: 'mistress',
+  userAnatomy: 'penis',
   look: 'clothed',
   body: 'athletic',
   skin: 'olive',
@@ -122,7 +132,6 @@ const emptyProfile = (): Profile => ({
   },
   unlocked: defaultUnlocked(),
   plan: 'free',
-  imagesLeft: 2,
   extraPacks: false,
 })
 
@@ -142,6 +151,10 @@ export default function App() {
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [rulesConfirmed, setRulesConfirmed] = useState(false)
   const [aiThinking, setAiThinking] = useState(false)
+  const [bodyOpen, setBodyOpen] = useState(false)
+  const [bodyView, setBodyView] = useState<BodyView>('front')
+  const [favoriteLook, setFavoriteLook] = useState<FavoriteLook | null>(null)
+  const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [imageBusy, setImageBusy] = useState(false)
   const [imageNotice, setImageNotice] = useState('')
   const [purchaseNotice, setPurchaseNotice] = useState('')
@@ -155,12 +168,16 @@ export default function App() {
   })
   const [entitlement, setEntitlement] = useState<Entitlement>({
     plan: 'free',
+    status: 'active',
+    expiresAt: null,
     extraPacks: false,
     bonusPeriod: currentUsagePeriod(),
     bonusImageGenerations: 0,
     bonusImageAnalyses: 0,
   })
+  const [entitlementLoaded, setEntitlementLoaded] = useState(false)
   const [sceneCatalog, setSceneCatalog] = useState(DEFAULT_SCENES)
+  const [contentCatalog, setContentCatalog] = useState(DEFAULT_CONTENT_CATALOG)
   const [savedSessionAvailable, setSavedSessionAvailable] = useState(false)
   const [back, setBack] = useState<Phase>('age')
   const [media, setMedia] = useState<{ url: string; kind: 'image' | 'video'; blob: Blob } | null>(null)
@@ -173,12 +190,10 @@ export default function App() {
     () =>
       observeAccount((next) => {
         setAccount(next)
-        if (next) {
-          setProfile((current) => ({
-            ...current,
-            plan: next.plan,
-            imagesLeft: next.imagesLeft,
-          }))
+        if (!next) {
+          setEntitlementLoaded(false)
+          setFavoriteLook(null)
+          setProfile((current) => ({ ...current, partnerImageUrl: undefined }))
         }
       }),
     [],
@@ -187,6 +202,11 @@ export default function App() {
   useEffect(() => {
     if (!account) return
     return observeScenes(setSceneCatalog)
+  }, [account])
+
+  useEffect(() => {
+    if (!account) return
+    return observeContentCatalog(setContentCatalog)
   }, [account])
 
   useEffect(() => {
@@ -201,17 +221,39 @@ export default function App() {
     void ensureUserProfile(account.id, account.email).catch(() => undefined)
     const stopConfig = observeUsageConfig(setUsageConfig)
     const stopEntitlement = observeEntitlement(account.id, (value) => {
-      const effective = account.role === 'admin' ? { ...value, plan: 'plus' as const } : value
+      const effective = account.role === 'admin'
+        ? { ...value, plan: 'plus' as const, status: 'active' as const, expiresAt: null }
+        : value
       setEntitlement(effective)
+      setEntitlementLoaded(true)
       setProfile((current) => ({
         ...current,
         plan: effective.plan,
         extraPacks: effective.extraPacks || effective.plan === 'plus',
-        unlocked: effective.extraPacks || effective.plan === 'plus' ? ALL : current.unlocked,
+        unlocked: effective.extraPacks || effective.plan === 'plus'
+          ? contentCatalog.fetishes.map((item) => item.id)
+          : contentCatalog.fetishes.filter((item) => item.free).map((item) => item.id),
+        nsfw: effective.plan === 'free' ? false : current.nsfw,
+        look: effective.plan === 'free' && current.look === 'nsfw' ? 'clothed' : current.look,
       }))
     })
     const stopUsage = observeUserUsage(account.id, setUsage)
     return () => { stopConfig(); stopEntitlement(); stopUsage() }
+  }, [account, contentCatalog.fetishes])
+
+  useEffect(() => {
+    if (!account) return
+    let active = true
+    void loadFavoriteLook(account.id).then((look) => {
+      if (!active) return
+      setFavoriteLook(look)
+      setProfile((current) => ({
+        ...current,
+        partnerImageUrl: look?.imageUrl,
+        ...(look ? { figure: look.figure } : {}),
+      }))
+    })
+    return () => { active = false }
   }, [account])
 
   useEffect(() => {
@@ -249,6 +291,7 @@ export default function App() {
   function panic() {
     aiRequestRef.current?.abort()
     setAiThinking(false)
+    setBodyOpen(false)
     setReturnPhase(phase === 'decoy' ? returnPhase : phase)
     setDraft('')
     setPhase('decoy')
@@ -290,8 +333,7 @@ export default function App() {
       privacyMode: 'device',
       chatName: saved.profile.chatName || profile.chatName,
       limits: { ...fallback.limits, ...saved.profile.limits },
-      plan: account.plan,
-      imagesLeft: account.imagesLeft,
+      plan: entitlement.plan,
     })
     setLines(saved.lines)
     setNear(saved.near)
@@ -323,8 +365,10 @@ export default function App() {
   }
 
   const locked = useMemo(
-    () => ALL.filter((id) => !profile.unlocked.includes(id) && !FETISH_META[id].free),
-    [profile.unlocked],
+    () => contentCatalog.fetishes.filter(
+      (item) => item.enabled && !item.free && !profile.unlocked.includes(item.id),
+    ),
+    [contentCatalog.fetishes, profile.unlocked],
   )
 
   function push(...ls: Line[]) {
@@ -334,11 +378,14 @@ export default function App() {
   function startSession() {
     aiRequestRef.current?.abort()
     setAiThinking(false)
-    const fetishes = profile.fetishes.filter(
-      (f) => profile.unlocked.includes(f) || FETISH_META[f].free,
-    )
+    setBodyOpen(false)
+    setBodyView('front')
+    const fetishes = profile.fetishes.filter((id) => {
+      const item = contentCatalog.fetishes.find((option) => option.id === id)
+      return item?.enabled && (item.free || profile.unlocked.includes(id))
+    })
     const p = { ...profile, fetishes }
-    const scenes = availableScenes(sceneCatalog, p)
+    const scenes = availableScenes(sceneCatalog, p, contentCatalog)
     const scene = scenes.find((item) => item.id === p.sceneId) ?? scenes[0]
     if (scene) p.sceneId = scene.id
     setProfile(p)
@@ -348,7 +395,7 @@ export default function App() {
     }
     setLines([
       systemLine(scene ? scene.title : 'Scene start'),
-      aiLine(scene?.openingPrompt || 'Scenen er startet. Fortæl mig, hvad du ønsker.'),
+      aiLine(openingPromptForPlan(scene, p.plan, p.nsfw)),
     ])
     setCycle(1)
     setNear('ok')
@@ -390,7 +437,7 @@ export default function App() {
     push(youLine('Viste et billede'))
     try {
       const reply = await analyzeImage({
-        profile,
+        profile: profileWithCatalog(profile, contentCatalog),
         near,
         cycle,
         lines,
@@ -423,7 +470,10 @@ export default function App() {
     setImageBusy(true)
     setImageNotice('AI-partneren bliver skabt…')
     try {
-      const imageUrl = await generatePartnerImage({ profile, signal: controller.signal })
+      const imageUrl = await generatePartnerImage({
+        profile: profileWithCatalog(profile, contentCatalog),
+        signal: controller.signal,
+      })
       setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
       setImageNotice(profile.privacyMode === 'device'
         ? 'Billedet er oprettet og gemmes kun på denne enhed.'
@@ -435,10 +485,55 @@ export default function App() {
     }
   }
 
+  async function saveCurrentLook() {
+    if (!account || !profile.partnerImageUrl || favoriteBusy) return
+    setFavoriteBusy(true)
+    const look: FavoriteLook = {
+      userId: account.id,
+      imageUrl: profile.partnerImageUrl,
+      figure: profile.figure,
+      savedAt: new Date().toISOString(),
+    }
+    try {
+      await saveFavoriteLook(look)
+      setFavoriteLook(look)
+      setImageNotice('Favoritten er gemt på denne enhed. Det bruger ikke et nyt figurbillede.')
+    } catch {
+      setImageNotice('Favoritten kunne ikke gemmes på denne enhed.')
+    } finally {
+      setFavoriteBusy(false)
+    }
+  }
+
+  function useFavoriteLook() {
+    if (!favoriteLook) return
+    setProfile((current) => ({
+      ...current,
+      figure: favoriteLook.figure,
+      partnerImageUrl: favoriteLook.imageUrl,
+    }))
+    setImageNotice('Din gemte favorit bruges igen uden billedforbrug.')
+  }
+
+  async function dropFavoriteLook() {
+    if (!account || favoriteBusy) return
+    setFavoriteBusy(true)
+    try {
+      await clearFavoriteLook(account.id)
+      setFavoriteLook(null)
+      setImageNotice('Favoritten er slettet fra denne enhed. Det viste billede bliver stående i denne session.')
+    } catch {
+      setImageNotice('Favoritten kunne ikke slettes fra denne enhed.')
+    } finally {
+      setFavoriteBusy(false)
+    }
+  }
+
   function tickSession(kind: 'close' | 'ok' | 'too' | 'deny' | 'finish' | 'safe') {
     aiRequestRef.current?.abort()
     setAiThinking(false)
     if (kind === 'safe') {
+      setBodyOpen(false)
       setRunning(false)
       setAftercareReason('safeword')
       push(youLine(profile.limits.safeword), aiLine(onSafeword()), systemLine('Aftercare'))
@@ -453,6 +548,7 @@ export default function App() {
       return
     }
     if (kind === 'too') {
+      setBodyOpen(false)
       setNear('too_much')
       setRunning(false)
       push(youLine('For meget'), aiLine(onTooMuch(profile)))
@@ -471,6 +567,7 @@ export default function App() {
       return
     }
     setRunning(false)
+    setBodyOpen(false)
     setAftercareReason('finish')
     push(youLine('Finish'), aiLine(onFinish(profile)))
     dropMedia()
@@ -479,14 +576,25 @@ export default function App() {
 
   async function sendAiRequest(
     text: string,
-    intent: 'chat' | 'task',
+    intent: 'chat' | 'task' | 'touch' | 'close' | 'climax',
     visibleText = text,
+    touchZone?: BodyZoneId,
   ) {
     if (!text || aiThinking) return
     if (!aiIsConfigured()) {
       push(
         youLine(visibleText),
-        aiLine(intent === 'task' ? 'Opgaveknappen kræver, at AI-chatten er aktiv.' : replyToText(profile, text, near)),
+        aiLine(
+          intent === 'task'
+            ? 'Opgaveknappen kræver, at AI-chatten er aktiv.'
+            : intent === 'touch'
+              ? 'Kropsfunktionen kræver, at AI-chatten er aktiv.'
+              : intent === 'close'
+                ? localCloseReply(profile)
+                : intent === 'climax'
+                  ? localClimaxReply(profile)
+              : replyToText(profile, text, near),
+        ),
       )
       return
     }
@@ -496,13 +604,24 @@ export default function App() {
     setAiThinking(true)
     push(youLine(visibleText))
     try {
-      const reply = await askAi({ profile, near, cycle, lines, text, intent, signal: controller.signal })
+      const reply = await askAi({
+        profile: profileWithCatalog(profile, contentCatalog),
+        near,
+        cycle,
+        lines,
+        text,
+        intent,
+        touchZone,
+        signal: controller.signal,
+      })
       push(aiLine(reply))
     } catch (error) {
       if (controller.signal.aborted) return
       const message = error instanceof Error ? error.message : 'Ukendt AI-fejl'
       push(systemLine(`AI kunne ikke svare: ${message}`))
       if (intent === 'chat') push(aiLine(replyToText(profile, text, near)))
+      if (intent === 'close') push(aiLine(localCloseReply(profile)))
+      if (intent === 'climax') push(aiLine(localClimaxReply(profile)))
     } finally {
       if (aiRequestRef.current === controller) aiRequestRef.current = null
       setAiThinking(false)
@@ -532,6 +651,39 @@ export default function App() {
     )
   }
 
+  async function touchBodyZone(zone: BodyZone) {
+    if (aiThinking) return
+    const visible = touchUserLine(zone)
+    const effectiveNsfw = profile.plan !== 'free' && profile.nsfw
+    if (!aiIsConfigured()) {
+      push(
+        youLine(visible),
+        aiLine(localTouchReply(
+          zone.id,
+          profile.figure,
+          effectiveNsfw,
+          profile.fetishes.includes('anal'),
+        )),
+      )
+      return
+    }
+    await sendAiRequest(visible, 'touch', visible, zone.id)
+  }
+
+  async function sendCloseMoment() {
+    if (aiThinking) return
+    setNear('close')
+    setRunning(false)
+    await sendAiRequest('Jeg er tæt på', 'close', 'Jeg er tæt på')
+  }
+
+  async function sendClimaxMoment() {
+    if (aiThinking) return
+    setNear('close')
+    setRunning(false)
+    await sendAiRequest('Jeg kommer nu', 'climax', 'Jeg kommer')
+  }
+
   function unlock(id: FetishId) {
     setProfile((p) => ({
       ...p,
@@ -540,8 +692,9 @@ export default function App() {
   }
 
   function toggleFetish(id: FetishId) {
-    const meta = FETISH_META[id]
-    if (!meta.free && !profile.unlocked.includes(id)) {
+    const item = contentCatalog.fetishes.find((option) => option.id === id)
+    if (!item?.enabled) return
+    if (!item.free && !profile.unlocked.includes(id)) {
       setShopOpen(true)
       return
     }
@@ -591,11 +744,7 @@ export default function App() {
       <LoginScreen
         onIn={(acc) => {
           setAccount(acc)
-          setProfile({
-            ...profile,
-            plan: acc.plan,
-            imagesLeft: acc.imagesLeft,
-          })
+          setEntitlementLoaded(false)
           setPhase('setup')
         }}
         onAdmin={() => {
@@ -615,6 +764,49 @@ export default function App() {
           setPhase(acc?.role === 'admin' ? 'setup' : 'login')
         }}
       />
+    )
+  }
+
+  const expired = entitlementIsExpired(entitlement)
+  const accountBlocked = Boolean(
+    account &&
+    account.role !== 'admin' &&
+    entitlementLoaded &&
+    (entitlement.status !== 'active' || expired),
+  )
+
+  if (accountBlocked && phase !== 'pay' && phase !== 'age' && phase !== 'rules') {
+    const title = expired
+      ? 'Dit abonnement er udløbet'
+      : entitlement.status === 'paused'
+        ? 'Din konto er sat på pause'
+        : 'Din konto er ikke aktiv'
+    return (
+      <main className="shell account-locked">
+        <p className="kicker">Konto</p>
+        <h1>{title}</h1>
+        <p className="lede">
+          AI-chat, billedgenerering og billedanalyse er stoppet centralt. Det kan ikke ændres fra denne telefon.
+        </p>
+        {entitlement.expiresAt && (
+          <p className="hint">Registreret udløb: {new Date(entitlement.expiresAt).toLocaleString('da-DK')}</p>
+        )}
+        <div className="row">
+          {(expired || entitlement.status === 'cancelled' || entitlement.status === 'churned') && (
+            <button className="primary" onClick={() => setPhase('pay')}>Se abonnement</button>
+          )}
+          <button
+            className="ghost"
+            onClick={() => {
+              logout()
+              setAccount(null)
+              setPhase('login')
+            }}
+          >
+            Log ud
+          </button>
+        </div>
+      </main>
     )
   }
 
@@ -781,8 +973,9 @@ export default function App() {
   }
 
   if (phase === 'setup') {
-    const scenes = availableScenes(sceneCatalog, profile)
+    const scenes = availableScenes(sceneCatalog, profile, contentCatalog)
     const selectedScene = scenes.find((scene) => scene.id === profile.sceneId) ?? scenes[0]
+    const currentPlan = PLANS.find((item) => item.id === entitlement.plan) ?? PLANS[0]
     return (
       <main className="shell">
         <p className="kicker">Opsætning {account ? `· ${account.email}` : ''}</p>
@@ -936,6 +1129,25 @@ export default function App() {
           ))}
         </div>
 
+        <h2>Din krop i chatten</h2>
+        <p className="hint">
+          Bruges kun til at tilpasse svarene fra “Tæt på” og “Jeg kommer”. Valget siger ikke noget om dit køn.
+        </p>
+        <div className="row">
+          {([
+            { id: 'penis' as UserAnatomy, title: 'Penis' },
+            { id: 'vulva' as UserAnatomy, title: 'Vulva' },
+          ]).map((item) => (
+            <button
+              key={item.id}
+              className={profile.userAnatomy === item.id ? 'chip on' : 'chip'}
+              onClick={() => setProfile({ ...profile, userAnatomy: item.id })}
+            >
+              {item.title}
+            </button>
+          ))}
+        </div>
+
         <h2>Figur (fiktiv voksen)</h2>
         <div className="row">
           {(['mistress', 'master'] as Figure[]).map((f) => (
@@ -952,15 +1164,18 @@ export default function App() {
         <h2>NSFW</h2>
         <button
           className={profile.nsfw ? 'chip on' : 'chip'}
+          disabled={!currentPlan.nsfw}
           onClick={() =>
-            setProfile({
-              ...profile,
-              nsfw: !profile.nsfw,
-              look: !profile.nsfw ? 'nsfw' : 'clothed',
-            })
+            currentPlan.nsfw && setProfile({
+                ...profile,
+                nsfw: !profile.nsfw,
+                look: !profile.nsfw ? 'nsfw' : 'clothed',
+              })
           }
         >
-          {profile.nsfw ? 'NSFW slået til — nøgen og direkte' : 'NSFW slået fra — tøjet på'}
+          {!currentPlan.nsfw
+            ? 'NSFW kræver Solo eller Plus'
+            : profile.nsfw ? 'NSFW slået til — nøgen og direkte' : 'NSFW slået fra — tøjet på'}
         </button>
         <p className="hint">
           Fra: pænere sprog og påklædt figur. Til: kønsdele, nøgenhed og frække ordrer. Stadig kun voksne.
@@ -972,6 +1187,7 @@ export default function App() {
             <button
               key={look}
               className={profile.look === look ? 'chip on' : 'chip'}
+              disabled={look === 'nsfw' && !currentPlan.nsfw}
               onClick={() => setProfile({ ...profile, look })}
             >
               {look === 'clothed' ? 'Påklædt' : look === 'fetish' ? 'Fetish tøj' : 'Fræk / NSFW'}
@@ -1070,7 +1286,34 @@ export default function App() {
             >
               {imageBusy ? 'Skaber billede…' : profile.partnerImageUrl ? 'Lav et nyt billede' : 'Skab AI-partner'}
             </button>
+            <div className="row look-actions">
+              <button
+                type="button"
+                className="ghost"
+                disabled={favoriteBusy || !profile.partnerImageUrl}
+                onClick={() => void saveCurrentLook()}
+              >
+                {favoriteBusy
+                  ? 'Gemmer…'
+                  : profile.partnerImageUrl === favoriteLook?.imageUrl
+                    ? 'Favorit gemt'
+                    : favoriteLook
+                      ? 'Erstat favorit'
+                      : 'Gem som favorit'}
+              </button>
+              {favoriteLook && profile.partnerImageUrl !== favoriteLook.imageUrl && (
+                <button type="button" className="ghost" disabled={favoriteBusy} onClick={useFavoriteLook}>
+                  Brug favorit
+                </button>
+              )}
+              {favoriteLook && (
+                <button type="button" className="ghost" disabled={favoriteBusy} onClick={() => void dropFavoriteLook()}>
+                  Slet favorit
+                </button>
+              )}
+            </div>
             <small>{imageGenerationsLeft} figurbilleder tilbage</small>
+            <p className="hint">Favoritten gemmes kun på denne enhed og bruger ikke et nyt billede.</p>
           </div>
         </section>
         {imageNotice && <p className="form-message">{imageNotice}</p>}
@@ -1117,7 +1360,9 @@ export default function App() {
         <h2>Udstyr til rådighed</h2>
         <p className="hint">Vælg kun det, du faktisk har. AI-partneren tilpasser scenen efter listen.</p>
         <div className="equipment-grid">
-          {EQUIPMENT.map((item) => (
+          {contentCatalog.equipment
+            .filter((item) => item.enabled && planCanUseContent(profile.plan, item))
+            .map((item) => (
             <label
               key={item.id}
               className={profile.equipment.includes(item.id) ? 'equipment-option on' : 'equipment-option'}
@@ -1129,7 +1374,7 @@ export default function App() {
               />
               <span>{item.title}</span>
             </label>
-          ))}
+            ))}
         </div>
         <label className="field">
           Andet udstyr
@@ -1143,18 +1388,17 @@ export default function App() {
 
         <h2>Fetish</h2>
         <div className="grid">
-          {ALL.map((id) => {
-            const meta = FETISH_META[id]
-            const lockedPack = !meta.free && !profile.unlocked.includes(id)
-            const active = profile.fetishes.includes(id)
+          {contentCatalog.fetishes.filter((item) => item.enabled).map((item) => {
+            const lockedPack = !item.free && !profile.unlocked.includes(item.id)
+            const active = profile.fetishes.includes(item.id)
             return (
               <button
-                key={id}
+                key={item.id}
                 className={`pack ${active ? 'on' : ''} ${lockedPack ? 'locked' : ''}`}
-                onClick={() => toggleFetish(id)}
+                onClick={() => toggleFetish(item.id)}
               >
-                <strong>{meta.title}</strong>
-                <span>{lockedPack ? 'Tilkøb' : meta.blurb}</span>
+                <strong>{item.title}</strong>
+                <span>{lockedPack ? 'Tilkøb' : item.blurb}</span>
               </button>
             )
           })}
@@ -1207,16 +1451,16 @@ export default function App() {
           <div className="sheet">
             <h2>Pakker</h2>
             <p className="hint">MVP: unlock er lokalt. Rigtig betaling kommer senere.</p>
-            {ALL.filter((id) => !FETISH_META[id].free).map((id) => (
-              <div className="shop-row" key={id}>
+            {contentCatalog.fetishes.filter((item) => item.enabled && !item.free).map((item) => (
+              <div className="shop-row" key={item.id}>
                 <div>
-                  <strong>{FETISH_META[id].title}</strong>
-                  <p>{FETISH_META[id].blurb}</p>
+                  <strong>{item.title}</strong>
+                  <p>{item.blurb}</p>
                 </div>
-                {profile.unlocked.includes(id) ? (
+                {profile.unlocked.includes(item.id) ? (
                   <span className="ok">Købt</span>
                 ) : (
-                  <button className="chip on" onClick={() => unlock(id)}>
+                  <button className="chip on" onClick={() => unlock(item.id)}>
                     Lås op
                   </button>
                 )}
@@ -1283,14 +1527,85 @@ export default function App() {
             {profile.privacyMode === 'private' ? 'Privat · gemmes ikke' : 'Gemmes kun på denne enhed'}
           </small>
           {!profile.partnerImageUrl && <small className="portrait-empty-text">Billede ikke oprettet endnu</small>}
+          {profile.partnerImageUrl === favoriteLook?.imageUrl && (
+            <small className="portrait-empty-text">Favorit på denne enhed</small>
+          )}
         </div>
         <div className="chat-tools">
+          <button
+            type="button"
+            className={bodyOpen ? 'note-button active' : 'note-button'}
+            aria-expanded={bodyOpen}
+            onClick={() => setBodyOpen((open) => !open)}
+          >
+            {bodyOpen ? 'Luk krop' : 'Rør krop'}
+          </button>
           <button className="note-button" onClick={panic}>Noter</button>
           <button className="safe" onClick={() => tickSession('safe')}>
             {profile.limits.safeword}
           </button>
         </div>
       </header>
+
+      {bodyOpen && (
+        <section className="body-board" aria-label="Berør AI-partnerens krop">
+          <div className="body-board-head">
+            <div>
+              <strong>Rør ved {partnerName}</strong>
+              <p>Tryk på en zone. Partneren reagerer i chatten.</p>
+            </div>
+            <div className="body-view-switch" role="group" aria-label="Vælg kropsside">
+              <button
+                type="button"
+                className={bodyView === 'front' ? 'chip on' : 'chip'}
+                onClick={() => setBodyView('front')}
+              >
+                Forfra
+              </button>
+              <button
+                type="button"
+                className={bodyView === 'back' ? 'chip on' : 'chip'}
+                onClick={() => setBodyView('back')}
+              >
+                Bagfra
+              </button>
+            </div>
+          </div>
+          <div className={`body-stage ${bodyView}`}>
+            {profile.partnerImageUrl ? (
+              <img src={profile.partnerImageUrl} alt="" className="body-stage-photo" />
+            ) : (
+              <div className="body-stage-fallback" aria-hidden="true">
+                <i className="silhouette-head" />
+                <i className="silhouette-body" />
+                <i className="silhouette-legs" />
+              </div>
+            )}
+            <div className="body-stage-shade" aria-hidden="true" />
+            {BODY_ZONES.filter((zone) => zone.view === bodyView).map((zone) => (
+              <button
+                key={`${zone.view}-${zone.id}`}
+                type="button"
+                className="body-zone"
+                disabled={aiThinking}
+                style={{
+                  left: `${zone.x}%`,
+                  top: `${zone.y}%`,
+                  width: `${zone.w}%`,
+                  height: `${zone.h}%`,
+                }}
+                onClick={() => void touchBodyZone(zone)}
+              >
+                <span>{zone.label}</span>
+              </button>
+            ))}
+          </div>
+          <small>
+            Zonerne er omtrentlige, fordi partnerbilledet kan variere. NSFW-valg,
+            plan, valgte temaer og safeword gælder stadig.
+          </small>
+        </section>
+      )}
 
       <div className="log chat-log" aria-live="polite">
         {lines.map((line) => line.from === 'system' ? (
@@ -1332,11 +1647,12 @@ export default function App() {
           <span>Opgaven bygger på scenen og den aktuelle chat.</span>
         </div>
         <div className="session-actions" aria-label="Hurtige scenevalg">
-          <button onClick={() => tickSession('close')}>Tæt på</button>
+          <button disabled={aiThinking} onClick={() => void sendCloseMoment()}>Tæt på</button>
+          <button className="finish" disabled={aiThinking} onClick={() => void sendClimaxMoment()}>Jeg kommer</button>
           <button onClick={() => tickSession('ok')}>Igen</button>
           <button onClick={() => tickSession('too')}>For meget</button>
           <button onClick={() => tickSession('deny')}>Nægt</button>
-          <button className="finish" onClick={() => tickSession('finish')}>Finish</button>
+          <button className="finish" onClick={() => tickSession('finish')}>Aftercare</button>
         </div>
 
         <form

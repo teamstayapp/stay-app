@@ -19,6 +19,8 @@ det der er delvist bygget, og det der skal være på plads før rigtige kunder.
 
 ### 1. Firestore er eneste sandhed om kontoen
 
+**Status: leveret 28. aug. 2026.**
+
 - Flyt plan, billedsaldo, kontostatus, pause, opsigelse og udløbsdato helt væk
   fra `localStorage`.
 - Workeren skal afvise AI-kald fra en pauset, udløbet eller lukket konto.
