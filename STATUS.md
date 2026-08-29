@@ -13,6 +13,7 @@ Firma på kvittering: må hedde noget andet end Stay.
 
 - [x] 18+ og regelside
 - [x] Firebase-login / opret med localStorage-fallback
+- [x] Login-e-mail huskes i feltet, og browserens sikre adgangskode-autofyld understøttes
 - [x] Admin-panel (PC): centrale Firestore-kunder, plan, saldo, udløb, pause, opsig og churn
 - [x] Rolle, figur, krop, personlighed
 - [x] NSFW til/fra
@@ -24,6 +25,7 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] Login-layout ala portal (email, kode, log ind)
 - [x] Panik / diskret skærm
 - [x] Valgfri panikdestination: noter, vejr, kalender eller eget app-/web-link
+- [x] Valgfri installeret iPhone-app via Apple Genveje
 - [x] Panik gemmer straks den aktive lokalt gemte session før appskift
 - [x] Mobil chatvisning med beskedbobler og partnerbillede-felt
 - [x] Chatnavn gemt pr. bruger og sendt med til AI

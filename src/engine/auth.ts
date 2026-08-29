@@ -33,6 +33,7 @@ export type AuthResult =
 
 const USERS_KEY = 'stay.users'
 const SESSION_KEY = 'stay.session'
+const REMEMBERED_EMAIL_KEY = 'stay.remembered-email'
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -81,6 +82,15 @@ export function currentAccount(): Account | null {
 export function setSession(id: string | null) {
   if (!id) localStorage.removeItem(SESSION_KEY)
   else localStorage.setItem(SESSION_KEY, id)
+}
+
+export function loadRememberedEmail(): string {
+  return localStorage.getItem(REMEMBERED_EMAIL_KEY)?.trim().toLowerCase() || ''
+}
+
+export function rememberLoginEmail(email: string): void {
+  const value = email.trim().toLowerCase()
+  if (value.includes('@')) localStorage.setItem(REMEMBERED_EMAIL_KEY, value)
 }
 
 export function register(email: string, password: string): Account | string {
@@ -183,13 +193,16 @@ export async function loginAsync(email: string, password: string): Promise<AuthR
         setSession(null)
         return { ok: true, notice: 'Bekræft din e-mail via linket, vi har sendt, og log derefter ind.' }
       }
+      rememberLoginEmail(email)
       return { ok: true, account: fromFirebase(email.trim().toLowerCase(), cred.user.uid, true) }
     } catch (error) {
       return { ok: false, error: authError(error, 'Kunne ikke logge ind.') }
     }
   }
   const result = login(email, password)
-  return typeof result === 'string' ? { ok: false, error: result } : { ok: true, account: result }
+  if (typeof result === 'string') return { ok: false, error: result }
+  rememberLoginEmail(email)
+  return { ok: true, account: result }
 }
 
 export async function registerAsync(email: string, password: string): Promise<AuthResult> {
@@ -202,13 +215,16 @@ export async function registerAsync(email: string, password: string): Promise<Au
       await sendEmailVerification(cred.user).catch(() => undefined)
       await signOut(auth)
       setSession(null)
+      rememberLoginEmail(email)
       return { ok: true, notice: 'Kontoen er oprettet. Bekræft din e-mail via linket, vi har sendt.' }
     } catch (error) {
       return { ok: false, error: authError(error, 'Kunne ikke oprette kontoen.') }
     }
   }
   const result = register(email, password)
-  return typeof result === 'string' ? { ok: false, error: result } : { ok: true, account: result }
+  if (typeof result === 'string') return { ok: false, error: result }
+  rememberLoginEmail(email)
+  return { ok: true, account: result }
 }
 
 export async function requestPasswordReset(email: string): Promise<string> {

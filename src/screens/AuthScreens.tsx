@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Account } from '../engine/auth'
 import {
   currentAccount,
+  loadRememberedEmail,
   loadAccounts,
   loginAsync,
   logout,
@@ -46,14 +47,13 @@ export function LoginScreen({
   onIn: (acc: Account) => void
   onAdmin: () => void
 }) {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => loadRememberedEmail())
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [mode, setMode] = useState<'in' | 'up'>('in')
   const [err, setErr] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const existing = currentAccount()
 
   async function go() {
     if (mode === 'up' && password !== confirmPassword) {
@@ -111,6 +111,7 @@ export function LoginScreen({
           </button>
         </div>
         <form
+          autoComplete="on"
           onSubmit={(e) => {
             e.preventDefault()
             go()
@@ -119,16 +120,23 @@ export function LoginScreen({
           <label className="field">
             Email
             <input
+              id="stay-login-email"
+              name="username"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="email"
               required
             />
           </label>
           <label className="field">
             Adgangskode
             <input
+              id="stay-login-password"
+              name="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -142,6 +150,8 @@ export function LoginScreen({
               <label className="field">
                 Gentag adgangskode
                 <input
+                  id="stay-login-password-confirm"
+                  name="password-confirmation"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -152,7 +162,6 @@ export function LoginScreen({
               </label>
             </>
           )}
-          {existing && <p className="hint">Sidst: {existing.email}</p>}
           {err && <p className="form-message">{err}</p>}
           {notice && <p className="form-message success">{notice}</p>}
           <button className="primary login-btn" disabled={busy}>

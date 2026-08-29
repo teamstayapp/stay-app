@@ -2,6 +2,27 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 29. august 2026 — panikknap kan åbne valgfri iPhone-app
+
+- Panikindstillingerne har fået “Valgfri app via Genveje”.
+- Brugeren opretter en Apple Genvej med handlingen “Åbn app”, vælger en vilkårlig
+  app og skriver genvejens navn i Stay.
+- Panikknappen skjuler straks Stay, gemmer den aktive scene ved valgt
+  enhedslagring og starter derefter den valgte genvej/app.
+- Der er en direkte knap til at åbne Apples Genveje-editor samt en kort
+  tretrinsvejledning i appen.
+
+## 29. august 2026 — bedre automatisk loginudfyldning
+
+- Den tidligere brugers e-mail vises ikke længere som en særskilt tekst på
+  loginforsiden.
+- En vellykket loginadresse huskes lokalt og sættes direkte ind i e-mailfeltet
+  næste gang, uden at adgangskoden gemmes af Stay.
+- Loginformularen bruger nu de korrekte feltnavne og browsermarkeringer til
+  Safari/iPhone, Android og adgangskodeadministratorer.
+- Adgangskoden kan fortsat udfyldes af telefonens sikre adgangskodefunktion;
+  Stay gemmer aldrig adgangskoden til automatisk udfyldning.
+
 ## 29. august 2026 — foldeliste, adminmenu og valgfri panikdestination
 
 - Udstyrslisten i opsætningen kan nu åbnes og lukkes med ét tryk og viser antal

@@ -7,11 +7,12 @@ const PRIVACY_PREFIX = 'stay.privacy-mode.'
 const NOTIFICATION_STYLE_PREFIX = 'stay.notification-style.'
 const PANIC_DESTINATION_PREFIX = 'stay.panic-destination.'
 
-export type PanicDestinationMode = 'decoy' | 'weather' | 'calendar' | 'custom'
+export type PanicDestinationMode = 'decoy' | 'weather' | 'calendar' | 'shortcut' | 'custom'
 
 export interface PanicDestination {
   mode: PanicDestinationMode
   customUrl: string
+  shortcutName: string
 }
 
 export interface DeviceSession {
@@ -121,13 +122,14 @@ export function saveNotificationStyle(userId: string, style: NotificationStyle):
 export function loadPanicDestination(userId: string): PanicDestination {
   try {
     const parsed = JSON.parse(localStorage.getItem(PANIC_DESTINATION_PREFIX + userId) || '') as Partial<PanicDestination>
-    const allowed: PanicDestinationMode[] = ['decoy', 'weather', 'calendar', 'custom']
+    const allowed: PanicDestinationMode[] = ['decoy', 'weather', 'calendar', 'shortcut', 'custom']
     return {
       mode: allowed.includes(parsed.mode as PanicDestinationMode) ? parsed.mode as PanicDestinationMode : 'decoy',
       customUrl: typeof parsed.customUrl === 'string' ? parsed.customUrl.slice(0, 500) : '',
+      shortcutName: typeof parsed.shortcutName === 'string' ? parsed.shortcutName.slice(0, 100) : '',
     }
   } catch {
-    return { mode: 'decoy', customUrl: '' }
+    return { mode: 'decoy', customUrl: '', shortcutName: '' }
   }
 }
 
@@ -135,5 +137,6 @@ export function savePanicDestination(userId: string, destination: PanicDestinati
   localStorage.setItem(PANIC_DESTINATION_PREFIX + userId, JSON.stringify({
     mode: destination.mode,
     customUrl: destination.customUrl.slice(0, 500),
+    shortcutName: destination.shortcutName.slice(0, 100),
   }))
 }

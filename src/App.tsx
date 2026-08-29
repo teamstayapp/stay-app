@@ -183,7 +183,11 @@ export default function App() {
   const [sceneCatalog, setSceneCatalog] = useState(DEFAULT_SCENES)
   const [contentCatalog, setContentCatalog] = useState(DEFAULT_CONTENT_CATALOG)
   const [savedSessionAvailable, setSavedSessionAvailable] = useState(false)
-  const [panicDestination, setPanicDestination] = useState<PanicDestination>({ mode: 'decoy', customUrl: '' })
+  const [panicDestination, setPanicDestination] = useState<PanicDestination>({
+    mode: 'decoy',
+    customUrl: '',
+    shortcutName: '',
+  })
   const [back, setBack] = useState<Phase>('age')
   const [media, setMedia] = useState<{ url: string; kind: 'image' | 'video'; blob: Blob } | null>(null)
   const aiRequestRef = useRef<AbortController | null>(null)
@@ -331,6 +335,8 @@ export default function App() {
       ? 'https://www.google.com/search?q=vejret'
       : panicDestination.mode === 'calendar'
         ? 'https://calendar.google.com/'
+        : panicDestination.mode === 'shortcut' && panicDestination.shortcutName.trim()
+          ? `shortcuts://run-shortcut?name=${encodeURIComponent(panicDestination.shortcutName.trim())}`
         : panicDestination.mode === 'custom'
           ? panicDestination.customUrl.trim()
           : ''
@@ -1158,8 +1164,10 @@ export default function App() {
                 ? 'Noter'
                 : panicDestination.mode === 'weather'
                   ? 'Vejr'
-                  : panicDestination.mode === 'calendar'
+                : panicDestination.mode === 'calendar'
                     ? 'Kalender'
+                    : panicDestination.mode === 'shortcut'
+                      ? 'Valgfri app'
                     : 'Eget valg'}
             </span>
           </summary>
@@ -1169,6 +1177,7 @@ export default function App() {
               ['decoy', 'Diskrete noter', 'Bliv i Stay på en neutral noteside.'],
               ['weather', 'Vejret', 'Åbn en neutral vejrsøgning.'],
               ['calendar', 'Kalender', 'Åbn Google Kalender eller den tilknyttede app.'],
+              ['shortcut', 'Valgfri app via Genveje', 'Åbn den app, du selv har valgt i en Apple Genvej.'],
               ['custom', 'Eget app- eller web-link', 'Indsæt fx en nyhedsside eller et app-link.'],
             ] as const).map(([mode, title, description]) => (
               <label className={panicDestination.mode === mode ? 'privacy-option on' : 'privacy-option'} key={mode}>
@@ -1181,6 +1190,31 @@ export default function App() {
                 <span><strong>{title}</strong><small>{description}</small></span>
               </label>
             ))}
+            {panicDestination.mode === 'shortcut' && (
+              <div className="panic-shortcut-setup">
+                <label className="field">
+                  Navnet på din Apple Genvej
+                  <input
+                    value={panicDestination.shortcutName}
+                    maxLength={100}
+                    placeholder="Fx Stay panik"
+                    onChange={(event) => choosePanicDestination({ ...panicDestination, shortcutName: event.target.value })}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => window.location.assign('shortcuts://create-shortcut')}
+                >
+                  Åbn Genveje og opret
+                </button>
+                <ol className="panic-shortcut-guide">
+                  <li>Tilføj handlingen “Åbn app”.</li>
+                  <li>Vælg den app, panikknappen skal åbne.</li>
+                  <li>Giv genvejen samme navn som ovenfor.</li>
+                </ol>
+              </div>
+            )}
             {panicDestination.mode === 'custom' && (
               <label className="field">
                 App- eller web-link
