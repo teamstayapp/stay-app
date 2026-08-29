@@ -34,7 +34,7 @@ export const PLANS: Plan[] = [
     imageAnalyses: 5,
     packs: false,
     nsfw: false,
-    blurb: 'Mærk appen. Ingen Fræk. To figurer.',
+    blurb: 'Mærk appen. Ingen fræk mund. To billeder.',
   },
   {
     id: 'solo',
@@ -45,7 +45,7 @@ export const PLANS: Plan[] = [
     imageAnalyses: 100,
     packs: false,
     nsfw: true,
-    blurb: 'NSFW + edge. 25 figurer om måneden.',
+    blurb: 'Fræk + kant. 25 nøgenbilleder om måneden.',
   },
   {
     id: 'plus',
@@ -56,7 +56,7 @@ export const PLANS: Plan[] = [
     imageAnalyses: 300,
     packs: true,
     nsfw: true,
-    blurb: 'Alle fetish-pakker. 80 figurer. Det I skal tjene på.',
+    blurb: 'Alle pakker. 80 nøgenbilleder. Det I skal tjene på.',
   },
 ]
 

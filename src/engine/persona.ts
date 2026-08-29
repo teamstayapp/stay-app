@@ -184,18 +184,18 @@ export function intensityHint(i: Intensity): string {
 }
 
 export const FETISH_META: Record<FetishId, { title: string; blurb: string; free: boolean }> = {
-  edge: { title: 'Edge', blurb: 'Op, hold, ned. Kernen.', free: true },
-  power: { title: 'Power', blurb: 'D/s, protocol, service. Voksne roller.', free: true },
-  aftercare: { title: 'Aftercare', blurb: 'Scene ovre. Vand. Varm stemme.', free: true },
-  cei: { title: 'CEI', blurb: 'Efter finish: slikke / sluge. Kun voksne.', free: false },
-  milking: { title: 'Milking', blurb: 'Maskine, sleeve, e-stim som legetøj.', free: false },
-  joi: { title: 'JOI', blurb: 'Hånd og tempo styret med ord.', free: false },
-  chastity: { title: 'Chastity', blurb: 'Timer og deny. Ingen rigtig lås ude i byen.', free: false },
-  humiliation: { title: 'Humiliation', blurb: 'Nedladende register. Default slået fra.', free: false },
-  femdom: { title: 'FemDom', blurb: 'Hun styrer. Pegging kun som tale.', free: false },
-  anal: { title: 'Anal / prostate', blurb: 'Play og milking som voksen fiktion.', free: false },
-  worship: { title: 'Worship', blurb: 'Krop, støvler, service. Ingen race play.', free: false },
-  roleskin: { title: 'Role skin', blurb: 'Maid, military, voksen petplay. Ikke schoolgirl.', free: false },
+  edge: { title: 'Kant', blurb: 'Op, hold, nægt. Kernen.', free: true },
+  power: { title: 'Styring', blurb: 'Du. Nu. Service. Voksne roller.', free: true },
+  aftercare: { title: 'Efter', blurb: 'Scenen ovre. Vand. Varm mund.', free: true },
+  cei: { title: 'Slik det op', blurb: 'Efter du kom: slik / sluge. Kun voksne.', free: false },
+  milking: { title: 'Malkning', blurb: 'Sleeve, maskine, e-stim. Tøm pikken.', free: false },
+  joi: { title: 'Hånd-kommando', blurb: 'Jeg styrer din hånd med ord.', free: false },
+  chastity: { title: 'Bur', blurb: 'Pikken låst i legen. Ingen rigtig lås ude.', free: false },
+  humiliation: { title: 'Ydmyg', blurb: 'Pinligt og frækt. Slået fra som standard.', free: false },
+  femdom: { title: 'Hun styrer', blurb: 'Hendes fisse, hendes tempo. Strap som tale.', free: false },
+  anal: { title: 'Røv', blurb: 'Plug, fingre, prostata. Som voksen fiktion.', free: false },
+  worship: { title: 'Tilbed', blurb: 'Krop, hæle, slik. Ingen raceplay.', free: false },
+  roleskin: { title: 'Kostume', blurb: 'Maid, uniform, voksen pet. Ikke skole.', free: false },
 }
 
 export function defaultUnlocked(): FetishId[] {
