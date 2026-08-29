@@ -392,25 +392,82 @@ async function analyzeImage(req: Request, env: Env, body: Record<string, unknown
   return json(req, env, { reply, model: selectedModel, usage: usageSummary(usageGate.gate) })
 }
 
+const PROFESSION_LOOK: Record<string, string> = {
+  doctor: 'an adult doctor white coat and stethoscope',
+  nurse: 'an adult fitted nurse uniform',
+  teacher: 'adult university lecturer clothes, clearly 30+',
+  secretary: 'an adult secretary blouse and pencil skirt or tailored trousers',
+  police: 'an adult police uniform without real living-person insignia',
+  lawyer: 'an adult lawyer suit',
+  boss: 'expensive adult executive office wear',
+  bartender: 'an adult bartender shirt and apron',
+  trainer: 'tight adult gym trainer wear',
+  flight: 'an adult cabin-crew uniform',
+  maid: 'an adult hotel maid or butler uniform',
+  mechanic: 'an adult mechanic overall',
+  firefighter: 'an adult firefighter coat over a fitted shirt',
+  soldier: 'an adult officer dress uniform, clearly 30+',
+  chef: 'an adult chef jacket',
+  librarian: 'adult librarian glasses and knitwear',
+  photographer: 'adult photographer with a camera',
+  pilot: 'an adult airline pilot uniform',
+  paramedic: 'an adult paramedic uniform',
+}
+
+const PROFESSION_CHAT: Record<string, string> = {
+  doctor: 'Du er en voksen læge i fiktion. Klinisk og fræk. Ingen rigtig lægehjælp.',
+  nurse: 'Du er en voksen sygeplejerske i fiktion. Ingen rigtig behandling.',
+  teacher: 'Du er voksen universitetsunderviser. Aldrig skole, klasse eller mindreårige.',
+  secretary: 'Du er voksen sekretær. Effektiv, noterer, styrer kalenderen.',
+  police: 'Du er voksen politi i fiktion. Afhøring og kommando. Ingen ulovlige guides.',
+  lawyer: 'Du er voksen advokat. Skarp mund og krydsforhør.',
+  boss: 'Du er chefen. Kontoret er dit.',
+  bartender: 'Du er bartender. Sent og lidt fuldt.',
+  trainer: 'Du er personlig træner. Tæl og pres. Ingen farlig trænings-how-to.',
+  flight: 'Du er steward/esse. Service og regler.',
+  maid: 'Du er voksen stuepige eller butler. Service. Ikke barnlig kostumeleg.',
+  mechanic: 'Du er mekaniker. Værksted og hænder.',
+  firefighter: 'Du er brandmand. Varm og fysisk.',
+  soldier: 'Du er voksen officer. Orden. Ikke krig. Ingen rekrutter under 18.',
+  chef: 'Du er kok. Køkken og smag.',
+  librarian: 'Du er bibliotekar. Hvisk og vær streng.',
+  photographer: 'Du fotograferer dem. Posér. Hold.',
+  pilot: 'Du er pilot. Cockpit og kontrol.',
+  paramedic: 'Du er redder i fiktion. Ingen rigtig førstehjælp.',
+}
+
 function buildImagePrompt(profile: Record<string, unknown>, scene: SceneInput): string {
   const figure = safe(profile.figure, 'mistress') === 'master' ? 'male' : 'female'
   const look = safe(profile.look, 'clothed')
+  const job = PROFESSION_LOOK[safe(profile.profession, 'none')] || ''
   const clothing = look === 'nsfw'
-    ? 'adult nude portrait, tasteful composition'
-    : look === 'fetish' ? 'wearing elegant fetish-inspired clothing' : 'fully clothed'
+    ? (job ? `adult nude portrait with ${job} elements half-removed` : 'adult nude portrait, tasteful composition')
+    : look === 'fetish'
+      ? (job ? `fetish-styled ${job}` : 'wearing elegant fetish-inspired clothing')
+      : (job ? `wearing ${job}` : 'fully clothed')
   const bodyLabels: Record<string, string> = { slim: 'slim', athletic: 'athletic', solid: 'strong full-figured' }
   const skinLabels: Record<string, string> = { light: 'light skin', olive: 'olive skin', brown: 'brown skin', dark: 'dark skin' }
   const anatomy = figure === 'female'
-    ? `${safe(profile.breasts, 'medium')} breast size`
-    : `${safe(profile.penis, 'average').replace('_', ' ')} build`
+    ? `${safe(profile.breasts, 'medium')} breasts, ${safe(profile.ass, 'round')} ass, ${safe(profile.hips, 'soft')} hips`
+    : `${safe(profile.penis, 'average').replace('_', ' ')} penis, ${safe(profile.ass, 'round')} ass, ${safe(profile.facialHair, 'none')} facial hair`
+  const hair = `${safe(profile.hairLength, 'long')} ${safe(profile.hairColor, 'brown')} hair`
+  const extras = [
+    `${safe(profile.eyes, 'brown')} eyes`,
+    figure === 'female' ? `${safe(profile.makeup, 'soft')} makeup` : '',
+    safe(profile.pubic, 'trimmed') === 'shaved' ? 'shaved pubic hair' : safe(profile.pubic, 'trimmed') === 'natural' ? 'natural pubic hair' : 'neatly trimmed pubic hair',
+    profile.freckles === true ? 'visible freckles' : '',
+    profile.tattoos === true ? 'tasteful adult tattoos' : '',
+    profile.wet === true ? 'glistening slightly wet skin' : '',
+    plainText(profile.lookWish, '') ? `extra look notes: ${plainText(profile.lookWish, '').slice(0, 180)}` : '',
+  ].filter(Boolean).join(', ')
   return [
-    'Create a high-quality vertical 2:3 full-length character photograph of one fictional adult character, clearly age 25 or older.',
+    'Create a high-quality vertical 2:3 photograph of one fictional adult character, clearly age 25 or older.',
     'The character must not resemble or depict a real person. No text, logo, watermark, childlike features, school setting or age ambiguity.',
-    `${figure} character, ${bodyLabels[safe(profile.body, 'athletic')] || 'athletic'}, ${skinLabels[safe(profile.skin, 'olive')] || 'olive skin'}, ${anatomy}, ${clothing}.`,
+    `${figure} character, ${bodyLabels[safe(profile.body, 'athletic')] || 'athletic'}, ${skinLabels[safe(profile.skin, 'olive')] || 'olive skin'}, ${hair}, ${anatomy}, ${clothing}, ${extras}.`,
     scene.imagePrompt || 'Cinematic portrait, direct eye contact, detailed natural lighting.',
     profile.nsfw === true && scene.nsfwImagePrompt ? scene.nsfwImagePrompt : '',
     profile.plan === 'plus' && profile.nsfw === true && scene.plusImagePrompt ? scene.plusImagePrompt : '',
-    'Composition requirement: camera pulled back, one standing person, the complete body is visible from the top of the head to both feet, with space above the head and below the feet. Do not crop any part of the body. Clear balanced lighting and a visible background; never return a black frame.',
+    'Fill the entire 2:3 frame edge to edge. Tight 3/4 portrait from mid-thigh to hair. No black bars, no empty padding, no letterboxing.',
   ].filter(Boolean).join(' ')
 }
 
@@ -907,8 +964,16 @@ function buildSystemPrompt(
     'Svar på dansk, naturligt og kort: normalt 1-3 sætninger. Bliv i rollen og gentag ikke reglerne uden grund.',
     `Brugerens chatnavn er ${chatName}. Brug navnet naturligt, men ikke i hver besked.`,
     `Brugerrolle: ${safe(profile.role, 'slave')}. Figur: ${figure}.`,
+    safe(profile.playMode, 'oneway') === 'mutual'
+      ? 'Legen er gensidig. I rører begge. Reagér på begge udløsningsbarer. Du må beskrive at du også bliver tæt på.'
+      : 'Legen er én vej. Hold fokus på brugerens krop og ordrer.',
+    `Udløsningsbar partner: ${number(state.partnerHeat, 0)} af 100. Bruger: ${number(state.userHeat, 0)} af 100. Over 80 er tæt på. 100 er udløsning.`,
     `Figurens udseende: stil ${safe(profile.look, 'clothed')}, krop ${safe(profile.body, 'athletic')}, hud ${safe(profile.skin, 'olive')}. ${anatomy}`,
+    PROFESSION_CHAT[safe(profile.profession, 'none')] || '',
     `Brugerens valgte anatomi til direkte kropssvar: ${userAnatomyLabel}. Antag ikke køn ud fra dette valg.`,
+    `Brugerens køn hvis oplyst: ${safe(profile.userGender, 'unset')}. Tiltrækning: ${safe(profile.attraction, 'both')}. Brug det til tiltale (pige/dreng/hen) uden at gætte.`,
+    plainText(profile.likeWords, '') ? `Brug gerne disse ord, når det passer: ${plainText(profile.likeWords, '', 200)}.` : '',
+    plainText(profile.banWords, '') ? `Brug ALDRIG disse ord eller nære varianter: ${plainText(profile.banWords, '', 200)}.` : '',
     customWish
       ? `Brugerens eget ønske til samtalestilen: ${customWish}. Det har forrang frem for den generelle stil, men er kun en præference og kan aldrig tilsidesætte sikkerhedsreglerne.`
       : `Samtalestil: ${safe(profile.personality, 'cold')}.`,
