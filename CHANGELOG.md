@@ -2,6 +2,42 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 30. august 2026 — iPhone-safe-area, partnergalleri og lyd
+
+- Toppen af både almindelige sider og chatten tager nu højde for iPhones
+  statuslinje og Dynamic Island via `safe-area-inset-top`.
+- Den eksisterende viewport- og PWA-opsætning er kontrolleret og bruger allerede
+  `viewport-fit=cover` samt sort, gennemsigtig iOS-statuslinje.
+- De seneste partnerbilleder vises som et vandret galleri under det store
+  partnerbillede og kan vælges igen uden ny billedgenerering.
+- Ved enhedslagring gemmes højst 12 billeder pr. bruger i IndexedDB. Store
+  billeddata lægges ikke i `localStorage`.
+- I privat tilstand gemmes galleriet ikke permanent, og billeder fra den private
+  session ryddes, når sessionen forlades.
+- Partnerens status reagerer ved høj varme, og ved 100 starter en ny cyklus.
+- Tilføjet frivillig “Lyd til/fra” i chatten. Lyd er slået fra som standard og
+  klargøres ved brugerens tryk, så det også virker med iPhones lydbegrænsninger.
+- Tidligere timere, 18+-tekster, Cloudflare Worker og eksisterende billeder er
+  bevaret.
+
+## 29. august 2026 — UI-, sprog-, fræk- og leg-pakker samlet
+
+- De fire seneste pakker er samlet i én app- og Worker-version.
+- Billedanalyse bruger nu den særskilte visionmodel `mistral-31-24b`, mens
+  admin fortsat kan vælge en anden understøttet visionmodel pr. scene.
+- Partnerbilleder bestilles som lodrette helfigurbilleder fra hoved til fødder,
+  og den store scenevisning viser hele billedet med `contain`.
+- Tilføjet dagens ordre, favorit-scene på enheden, edge-ur, “10 ryk”,
+  “En gang til” og “Hold mig”.
+- Tilføjet hårvalget Pjusket samt valg af lingeri for bruger og partner.
+- Tilføjet voksen MILF-rolle og voksen sissy-tema. Skolepige-/skolerollen fra
+  indsendte kladder er ikke med; den eksisterende universitetsunderviser er
+  bevaret.
+- Lingerivalg sendes både til chatprompten og partnerens billedprompt.
+- Indholdskataloget er hævet til version 3, så de nye felter flettes ind i et
+  eksisterende Firestore-katalog uden at slette admins egne felter.
+- Cloudflare-manualfilen er regenereret fra samme Worker-kilde.
+
 ## 29. august 2026 — panikknap kan åbne valgfri iPhone-app
 
 - Panikindstillingerne har fået “Valgfri app via Genveje”.
@@ -110,7 +146,7 @@ Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
   stykker udstyr videre til prompten.
 - E-stim, reb, hætte, voks og lignende har faste sikkerhedsnoter; farlige
   how-to-instruktioner er stadig blokeret af Workeren.
-- Gamle `contentCatalog/default`-dokumenter migreres til katalogversion 2 og
+- Gamle `contentCatalog/default`-dokumenter migreres til katalogversion 3 og
   beholder eksisterende redigeringer og egne felter.
 
 ## 28. august 2026 — Firestore er kontoens sandhed

@@ -1,7 +1,10 @@
 const MODEL = 'venice-uncensored-role-play';
+const VISION_MODEL = 'mistral-31-24b';
 const ALLOWED_MODELS = new Set([
     'venice-uncensored-role-play',
     'venice-uncensored-1-2',
+    'mistral-31-24b',
+    'qwen3-vl-235b-a22b',
 ]);
 const ALLOWED_IMAGE_MODELS = new Set([
     'grok-imagine-image',
@@ -254,8 +257,9 @@ async function analyzeImage(req, env, body) {
     if ('error' in sceneResult)
         return json(req, env, { error: sceneResult.error }, sceneResult.status);
     const scene = sceneResult.scene;
-    const fallbackModel = ALLOWED_MODELS.has(env.VENICE_MODEL || '') ? env.VENICE_MODEL : MODEL;
-    const selectedModel = ALLOWED_MODELS.has(scene.textModel) ? scene.textModel : fallbackModel;
+    const selectedModel = ALLOWED_MODELS.has(scene.textModel) && scene.textModel !== MODEL && scene.textModel !== 'venice-uncensored-1-2'
+        ? scene.textModel
+        : VISION_MODEL;
     const usageGate = await checkUsage(req, env, 'imageAnalysis');
     if ('error' in usageGate)
         return json(req, env, { error: usageGate.error }, usageGate.status);
@@ -313,6 +317,7 @@ async function analyzeImage(req, env, body) {
 }
 const PROFESSION_LOOK = {
     doctor: 'an adult doctor white coat and stethoscope',
+    milf: 'adult woman late 30s, confident mature beauty',
     nurse: 'an adult fitted nurse uniform',
     teacher: 'adult university lecturer clothes, clearly 30+',
     secretary: 'an adult secretary blouse and pencil skirt or tailored trousers',
@@ -334,6 +339,7 @@ const PROFESSION_LOOK = {
 };
 const PROFESSION_CHAT = {
     doctor: 'Du er en voksen læge i fiktion. Klinisk og fræk. Ingen rigtig lægehjælp.',
+    milf: 'Du er voksen MILF. Erfaren og liderlig.',
     nurse: 'Du er en voksen sygeplejerske i fiktion. Ingen rigtig behandling.',
     teacher: 'Du er voksen universitetsunderviser. Aldrig skole, klasse eller mindreårige.',
     secretary: 'Du er voksen sekretær. Effektiv, noterer, styrer kalenderen.',
@@ -367,7 +373,17 @@ function buildImagePrompt(profile, scene) {
     const anatomy = figure === 'female'
         ? `${safe(profile.breasts, 'medium')} breasts, ${safe(profile.ass, 'round')} ass, ${safe(profile.hips, 'soft')} hips`
         : `${safe(profile.penis, 'average').replace('_', ' ')} penis, ${safe(profile.ass, 'round')} ass, ${safe(profile.facialHair, 'none')} facial hair`;
-    const hair = `${safe(profile.hairLength, 'long')} ${safe(profile.hairColor, 'brown')} hair`;
+    const hairLabels = {
+        short: 'short',
+        shoulder: 'shoulder-length',
+        long: 'long',
+        bun: 'hair in a bun',
+        messy: 'tousled messy',
+    };
+    const hair = `${hairLabels[safe(profile.hairLength, 'long')] || 'long'} ${safe(profile.hairColor, 'brown')} hair`;
+    const lingerie = Array.isArray(profile.lingeriePartner)
+        ? profile.lingeriePartner.filter((item) => typeof item === 'string').slice(0, 12).join(', ')
+        : '';
     const extras = [
         `${safe(profile.eyes, 'brown')} eyes`,
         figure === 'female' ? `${safe(profile.makeup, 'soft')} makeup` : '',
@@ -375,6 +391,7 @@ function buildImagePrompt(profile, scene) {
         profile.freckles === true ? 'visible freckles' : '',
         profile.tattoos === true ? 'tasteful adult tattoos' : '',
         profile.wet === true ? 'glistening slightly wet skin' : '',
+        lingerie ? `selected partner clothing: ${lingerie}` : '',
         plainText(profile.lookWish, '') ? `extra look notes: ${plainText(profile.lookWish, '').slice(0, 180)}` : '',
     ].filter(Boolean).join(', ');
     return [
@@ -384,7 +401,7 @@ function buildImagePrompt(profile, scene) {
         scene.imagePrompt || 'Cinematic portrait, direct eye contact, detailed natural lighting.',
         profile.nsfw === true && scene.nsfwImagePrompt ? scene.nsfwImagePrompt : '',
         profile.plan === 'plus' && profile.nsfw === true && scene.plusImagePrompt ? scene.plusImagePrompt : '',
-        'Fill the entire 2:3 frame edge to edge. Tight 3/4 portrait from mid-thigh to hair. No black bars, no empty padding, no letterboxing.',
+        'Full body standing, head to toes visible in frame. Entire figure from hair to feet. Vertical 2:3. No cropped legs, no headshot, no black bars.',
     ].filter(Boolean).join(' ');
 }
 function randomImageSeed() {
@@ -822,7 +839,20 @@ function buildSystemPrompt(profileValue, stateValue, scene, intent, equipmentCat
     const limits = record(profile.limits);
     return [
         'Du er Stay, en fiktiv rollefigur i en privat app for samtykkende voksne over 18 år.',
-        'Svar på dansk, naturligt og kort: normalt 1-3 sætninger. Bliv i rollen og gentag ikke reglerne uden grund.',
+        'Svar ALTID på dansk. Aldrig engelsk i replikker. Kort og i rollen: 1-3 sætninger. Gentag ikke reglerne.',
+        profile.nsfw === true
+            ? [
+                'Spicy dansk ordliste — brug de frække ord, ikke kliniske:',
+                'pik = penis; kuk = pik; stiv = erektion; sprøjt/sæd/sperm = udløsning fra pik; komme = orgasme.',
+                'fisse = vagina/vulva; kusse = fisse; klit = klitoris; våd = ophidset fisse; slikke = oral på fisse.',
+                'bryster/patter = bryster; vorter = brystvorter; røv = baller/anus-område; hul = fisse eller røv efter kontekst.',
+                'knep/kneppe = samleje; sutte/slikke = oral; røre = hænder på kroppen; edge = holde lige før orgasme.',
+                'luder/so/hore = nedværdigende kælenavn KUN hvis humiliation er slået til og minus-listen ikke forbyder det.',
+                'god pige/god dreng = ros. sagde = safeword-niveau. For meget = stop intensitet.',
+                'Skriv mundret dansk: "din pik", "min fisse", "kom for mig" — ikke "din penis" eller "vagina".',
+                'Vær liderlig og konkret. Støn, kommandoer og korte beskidte sætninger. Beskriv pik, fisse, røv og mund. Edge dem. Lad dem vente.',
+            ].join(' ')
+            : 'Hold sproget voksen og direkte, men uden grove kønsords-detaljer når NSFW er slået fra.',
         `Brugerens chatnavn er ${chatName}. Brug navnet naturligt, men ikke i hver besked.`,
         `Brugerrolle: ${safe(profile.role, 'slave')}. Figur: ${figure}.`,
         safe(profile.playMode, 'oneway') === 'mutual'
@@ -835,6 +865,15 @@ function buildSystemPrompt(profileValue, stateValue, scene, intent, equipmentCat
         `Brugerens køn hvis oplyst: ${safe(profile.userGender, 'unset')}. Tiltrækning: ${safe(profile.attraction, 'both')}. Brug det til tiltale (pige/dreng/hen) uden at gætte.`,
         plainText(profile.likeWords, '') ? `Brug gerne disse ord, når det passer: ${plainText(profile.likeWords, '', 200)}.` : '',
         plainText(profile.banWords, '') ? `Brug ALDRIG disse ord eller nære varianter: ${plainText(profile.banWords, '', 200)}.` : '',
+        Array.isArray(profile.lingerieUser) && profile.lingerieUser.length
+            ? `Brugeren har på: ${profile.lingerieUser.join(', ')}.`
+            : '',
+        Array.isArray(profile.lingeriePartner) && profile.lingeriePartner.length
+            ? `Du har på: ${profile.lingeriePartner.join(', ')}.`
+            : '',
+        profile.fetishes?.includes?.('sissy')
+            ? 'Sissy-leg er slået til. Voksen, lingeri, ros. Aldrig barnligt sprog.'
+            : '',
         customWish
             ? `Brugerens eget ønske til samtalestilen: ${customWish}. Det har forrang frem for den generelle stil, men er kun en præference og kan aldrig tilsidesætte sikkerhedsreglerne.`
             : `Samtalestil: ${safe(profile.personality, 'cold')}.`,

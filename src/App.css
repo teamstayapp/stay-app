@@ -13,7 +13,7 @@
 .shell {
   max-width: 28rem;
   margin: 0 auto;
-  padding: 1.5rem 1.1rem 2.5rem;
+  padding: max(1.5rem, calc(env(safe-area-inset-top, 0px) + 0.85rem)) 1.1rem max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
   min-height: 100dvh;
 }
 
@@ -439,7 +439,7 @@ h2 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
   height: 100dvh;
   min-height: 0;
   max-width: 42rem;
-  padding: 0.7rem 0.75rem max(0.7rem, env(safe-area-inset-bottom));
+  padding: max(0.75rem, calc(env(safe-area-inset-top, 0px) + 0.55rem)) 0.75rem max(0.7rem, env(safe-area-inset-bottom));
   overflow: hidden;
   background:
     radial-gradient(circle at 10% -10%, rgba(196, 92, 74, 0.13), transparent 30%),
@@ -1227,6 +1227,17 @@ table.admin th { color: var(--muted); font-weight: 500; }
   overflow: hidden;
   background: #0c0908;
 }
+.session[data-stage="true"] .stage {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
+  bottom: 30vh;
+  z-index: 40;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+}
 .stage-hit {
   flex: 1;
   min-height: 0;
@@ -1239,9 +1250,10 @@ table.admin th { color: var(--muted); font-weight: 500; }
 .stage-hit img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center 18%;
+  object-fit: contain;
+  object-position: center center;
   display: block;
+  background: #0c0908;
 }
 .stage-tools {
   display: flex;
@@ -1306,3 +1318,32 @@ table.admin th { color: var(--muted); font-weight: 500; }
   color: #fff4ef;
   cursor: pointer;
 }
+
+.session[data-stage="true"] .heat-board,
+.session[data-stage="true"] .partner-card {
+  position: relative;
+  z-index: 41;
+}
+.session[data-stage="true"] {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.partner-gallery {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding: 0.35rem 0 0.6rem;
+  -webkit-overflow-scrolling: touch;
+}
+.partner-gallery button {
+  flex: 0 0 4.2rem;
+  width: 4.2rem;
+  height: 5.6rem;
+  padding: 0;
+  border: 1px solid rgba(232,196,168,0.25);
+  border-radius: 0.7rem;
+  overflow: hidden;
+  background: #1a1210;
+}
+.partner-gallery button.on { outline: 2px solid #e08a6a; }
+.partner-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }

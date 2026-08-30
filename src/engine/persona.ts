@@ -129,7 +129,7 @@ export function onMedia(profile: Profile, kind: 'image' | 'video'): string {
   const p = pack(profile)
   if (profile.nsfw) {
     return kind === 'video'
-      ? 'Jeg ser pikken. Bliv i billedet. Ikke kom af at filme.'
+      ? 'Jeg ser den. Pikken i billedet. Bliv der. Du kommer ikke af at filme.'
       : 'Nøgenhed set. Godt. Hånden tilbage på den.'
   }
   if (profile.role === 'domme') {

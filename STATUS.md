@@ -55,6 +55,16 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] Lokalt partnerbillede som gratis favorit på den valgte enhed
 - [x] Lodret helfigurbillede i 2:3, større visning og kontrol mod sorte/tomme billeder
 - [x] Faste Master/Mistress-kropskort forfra/bagfra med præcise trykzoner
+- [x] Visionmodel til aflæsning af brugerbilleder (`mistral-31-24b` som standard)
+- [x] Partnerbillede som helfigur fra hoved til fødder i stor `contain`-visning
+- [x] Dagens ordre, favorit-scene, edge-ur og “10 ryk”-tæller
+- [x] Lingerivalg for bruger og partner sendt til tekst- og billedprompt
+- [x] Voksen MILF-rolle og voksen sissy-tema
+- [x] iPhone-safe-area over statuslinje og Dynamic Island
+- [x] Lokalt partnergalleri med op til 12 billeder pr. bruger
+- [x] Privat galleri slettes ved sessionsslut og gemmes ikke permanent
+- [x] Partnerstatus og ny cyklus ved 100 varme
+- [x] Frivillig chatlyd, slået fra som standard
 
 ---
 

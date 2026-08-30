@@ -103,8 +103,31 @@ import {
   saveFavoriteLook,
   type FavoriteLook,
 } from './engine/favoriteImage'
+import { loadPartnerGallery, savePartnerGallery } from './engine/partnerGallery'
 import { localClimaxReply, localCloseReply } from './engine/climax'
 import './App.css'
+
+function playStaySound(kind: 'moan' | 'come', existingContext?: AudioContext) {
+  try {
+    const context = existingContext || new AudioContext()
+    if (context.state === 'suspended') void context.resume()
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    oscillator.type = 'sine'
+    oscillator.frequency.value = kind === 'come' ? 180 : 240
+    gain.gain.value = 0.0001
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+    const now = context.currentTime
+    gain.gain.exponentialRampToValueAtTime(kind === 'come' ? 0.05 : 0.03, now + 0.05)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + (kind === 'come' ? 0.9 : 0.45))
+    oscillator.start(now)
+    oscillator.stop(now + (kind === 'come' ? 1 : 0.5))
+    if (!existingContext) window.setTimeout(() => void context.close(), 1500)
+  } catch {
+    // Lyd er valgfri og må aldrig blokere chatten.
+  }
+}
 
 function profileWithCatalog(profile: Profile, catalog: ContentCatalog): Profile {
   const selectedFetishes = catalog.fetishes.filter((item) => item.enabled && profile.fetishes.includes(item.id))
@@ -167,6 +190,8 @@ const emptyProfile = (): Profile => ({
   unlocked: defaultUnlocked(),
   plan: 'free',
   extraPacks: false,
+  lingerieUser: [],
+  lingeriePartner: [],
 })
 
 export default function App() {
@@ -190,11 +215,19 @@ export default function App() {
   const [bodyOpen, setBodyOpen] = useState(false)
   const [bodyView, setBodyView] = useState<BodyView>('front')
   const [stageOpen, setStageOpen] = useState(false)
+  const [edgeMode, setEdgeMode] = useState<'idle' | 'play' | 'hold'>('idle')
+  const [edgeLeft, setEdgeLeft] = useState(0)
+  const [strokeLeft, setStrokeLeft] = useState(0)
   const [saveNotice, setSaveNotice] = useState('')
   const [favoriteLook, setFavoriteLook] = useState<FavoriteLook | null>(null)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [imageBusy, setImageBusy] = useState(false)
   const [imageNotice, setImageNotice] = useState('')
+  const [gallery, setGallery] = useState<string[]>([])
+  const [soundOn, setSoundOn] = useState(false)
+  const partnerPeakRef = useRef(false)
+  const moanLockRef = useRef(false)
+  const soundContextRef = useRef<AudioContext | null>(null)
   const [purchaseNotice, setPurchaseNotice] = useState('')
   const [usageConfig, setUsageConfig] = useState(DEFAULT_USAGE_CONFIG)
   const [usage, setUsage] = useState<UsageSnapshot>({
@@ -236,6 +269,7 @@ export default function App() {
         if (!next) {
           setEntitlementLoaded(false)
           setFavoriteLook(null)
+          setGallery([])
           setProfile((current) => ({ ...current, partnerImageUrl: undefined }))
         }
       }),
@@ -295,6 +329,15 @@ export default function App() {
         partnerImageUrl: look?.imageUrl,
         ...(look ? { figure: look.figure } : {}),
       }))
+    })
+    return () => { active = false }
+  }, [account])
+
+  useEffect(() => {
+    if (!account || loadPrivacyMode(account.id) !== 'device') return
+    let active = true
+    void loadPartnerGallery(account.id).then((imageUrls) => {
+      if (active) setGallery(imageUrls)
     })
     return () => { active = false }
   }, [account])
@@ -391,8 +434,16 @@ export default function App() {
     if (!account) return
     savePrivacyMode(account.id, mode)
     if (mode === 'private') {
+      setGallery(profile.partnerImageUrl ? [profile.partnerImageUrl] : [])
       savedMediaBlobRef.current = null
       void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
+    } else {
+      const sessionImages = gallery
+      void loadPartnerGallery(account.id).then((storedImages) => {
+        const imageUrls = [...new Set([...sessionImages, ...storedImages])].slice(0, 12)
+        setGallery(imageUrls)
+        return savePartnerGallery(account.id, imageUrls)
+      }).catch(() => setImageNotice('Galleriet kunne ikke gemmes på denne enhed.'))
     }
   }
 
@@ -481,8 +532,18 @@ export default function App() {
     if (account && p.privacyMode === 'private') {
       void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
     }
+    const dayKey = new Date().toISOString().slice(0, 10)
+    const dailyPool = [
+      'I dag: 20 langsomme ryk, så hænderne væk i et minut.',
+      'I dag: lingeri på under tøjet hele aftenen.',
+      'I dag: ingen orgasme før aftenen. Edge tre gange.',
+      'I dag: send et billede når du er tæt på.',
+      'I dag: plug eller trusser — du vælger, du beholder det på.',
+    ]
+    const daily = dailyPool[[...dayKey].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % dailyPool.length]
     setLines([
       systemLine(scene ? scene.title : 'Scene start'),
+      systemLine(`Dagens ordre: ${daily}`),
       aiLine(openingPromptForPlan(scene, p.plan, p.nsfw)),
     ])
     setCycle(1)
@@ -528,6 +589,8 @@ export default function App() {
         profile: profileWithCatalog(profile, contentCatalog),
         near,
         cycle,
+        partnerHeat,
+        userHeat,
         lines,
         text: 'Se på billedet og reager naturligt i vores aktuelle samtale. Beskriv kun det, du tydeligt kan se.',
         file,
@@ -538,6 +601,7 @@ export default function App() {
       if (controller.signal.aborted) return
       const message = error instanceof Error ? error.message : 'Ukendt billedfejl'
       push(systemLine(`AI kunne ikke aflæse billedet: ${message}`))
+      push(aiLine(onMedia(profile, 'image')))
     } finally {
       if (aiRequestRef.current === controller) aiRequestRef.current = null
       setAiThinking(false)
@@ -563,8 +627,20 @@ export default function App() {
         signal: controller.signal,
       })
       setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
+      const imageUrls = [imageUrl, ...gallery.filter((item) => item !== imageUrl)].slice(0, 12)
+      setGallery(imageUrls)
+      let gallerySaved = true
+      if (account && profile.privacyMode === 'device') {
+        try {
+          await savePartnerGallery(account.id, imageUrls)
+        } catch {
+          gallerySaved = false
+        }
+      }
       setImageNotice(profile.privacyMode === 'device'
-        ? 'Billedet er oprettet og gemmes kun på denne enhed.'
+        ? gallerySaved
+          ? 'Billedet er oprettet og gemmes kun på denne enhed.'
+          : 'Billedet er oprettet, men galleriet kunne ikke gemmes på denne enhed.'
         : 'Billedet er oprettet og slettes, når den private session forlades.')
     } catch (error) {
       setImageNotice(error instanceof Error ? error.message : 'Billedet kunne ikke oprettes.')
@@ -655,6 +731,34 @@ export default function App() {
 
 
   useEffect(() => {
+    if (partnerHeat < 80) {
+      partnerPeakRef.current = false
+      moanLockRef.current = false
+      return
+    }
+    if (soundOn && partnerHeat < 100 && !moanLockRef.current) {
+      moanLockRef.current = true
+      playStaySound('moan', soundContextRef.current || undefined)
+    }
+    if (partnerHeat >= 100 && !partnerPeakRef.current) {
+      partnerPeakRef.current = true
+      const line = profile.figure === 'mistress'
+        ? 'Ahh — jeg kommer. Fissen trækker sig sammen om ingenting. Vent. Så tager vi en runde mere.'
+        : 'Ahh — jeg kommer. Pikken pulserer. Sprøjt. Vent. Så tager vi en runde mere.'
+      push(aiLine(line))
+      setPartnerHeat(18)
+      setCycle((current) => current + 1)
+      if (soundOn) playStaySound('come', soundContextRef.current || undefined)
+    }
+  }, [partnerHeat, soundOn, profile.figure])
+
+  useEffect(() => () => {
+    const context = soundContextRef.current
+    soundContextRef.current = null
+    if (context && context.state !== 'closed') void context.close()
+  }, [])
+
+  useEffect(() => {
     const id = window.setInterval(() => {
       setPartnerHeat((heat) => {
         let delta = running ? 2 : -1
@@ -666,6 +770,29 @@ export default function App() {
     }, 1800)
     return () => window.clearInterval(id)
   }, [running, near, profile.playMode, userHeat])
+
+
+  useEffect(() => {
+    if (edgeMode === 'idle') return
+    const id = window.setInterval(() => {
+      setEdgeLeft((seconds) => {
+        if (seconds <= 1) {
+          setEdgeMode('idle')
+          return 0
+        }
+        return seconds - 1
+      })
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [edgeMode])
+
+  useEffect(() => {
+    if (strokeLeft <= 0) return
+    const id = window.setInterval(() => {
+      setStrokeLeft((count) => Math.max(0, count - 1))
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [strokeLeft])
 
   function tickSession(kind: 'close' | 'ok' | 'too' | 'deny' | 'finish' | 'safe') {
     aiRequestRef.current?.abort()
@@ -1398,6 +1525,25 @@ export default function App() {
         </div>
 
 
+
+        <div className="row">
+          <button type="button" className="ghost" onClick={() => {
+            window.localStorage.setItem('stay-favorite-scene', JSON.stringify(profile))
+            setImageNotice('Favorit-scene gemt på telefonen.')
+          }}>Gem som favorit-scene</button>
+          <button type="button" className="ghost" onClick={() => {
+            try {
+              const raw = window.localStorage.getItem('stay-favorite-scene')
+              if (!raw) { setImageNotice('Ingen favorit-scene gemt.'); return }
+              const saved = JSON.parse(raw) as Profile
+              setProfile({ ...profile, ...saved, partnerImageUrl: profile.partnerImageUrl })
+              setImageNotice('Favorit-scene hentet.')
+            } catch {
+              setImageNotice('Kunne ikke hente favorit-scenen.')
+            }
+          }}>Hent favorit-scene</button>
+        </div>
+
         <h2>Jeg er</h2>
         <div className="row">
           {([
@@ -1522,7 +1668,7 @@ export default function App() {
 
         {profile.figure === 'mistress' && (
           <>
-            <h2>Patter</h2>
+            <h2>Bryster</h2>
             <div className="row">
               {(['small', 'medium', 'large'] as Breasts[]).map((b) => (
                 <button
@@ -1562,7 +1708,7 @@ export default function App() {
           ))}
         </div>
         <div className="row">
-          {([['short', 'Kort'], ['shoulder', 'Skulder'], ['long', 'Langt'], ['bun', 'Opsat']] as Array<[HairLength, string]>).map(([id, title]) => (
+          {([['short', 'Kort'], ['shoulder', 'Skulder'], ['long', 'Langt'], ['bun', 'Opsat'], ['messy', 'Pjusket']] as Array<[HairLength, string]>).map(([id, title]) => (
             <button key={id} type="button" className={profile.hairLength === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, hairLength: id })}>{title}</button>
           ))}
         </div>
@@ -1686,6 +1832,24 @@ export default function App() {
             <p className="hint">Favoritten gemmes kun på denne enhed og bruger ikke et nyt billede.</p>
           </div>
         </section>
+        {gallery.length > 0 && (
+          <div className="partner-gallery" role="list" aria-label="Tidligere partnerbilleder på denne enhed">
+            {gallery.map((imageUrl, index) => (
+              <button
+                key={`${imageUrl.slice(-32)}-${index}`}
+                type="button"
+                role="listitem"
+                className={profile.partnerImageUrl === imageUrl ? 'on' : ''}
+                onClick={() => {
+                  setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
+                  setImageNotice('Billedet er valgt fra galleriet.')
+                }}
+              >
+                <img src={imageUrl} alt={`Partnerbillede ${index + 1}`} />
+              </button>
+            ))}
+          </div>
+        )}
         {imageNotice && <p className="form-message">{imageNotice}</p>}
 
         <h2>Hvordan skal AI-partneren være?</h2>
@@ -1773,6 +1937,42 @@ export default function App() {
         </details>
 
         
+
+        <h2>Lingeri og sissy</h2>
+        <p className="hint">Hvad har du på, og hvad har partneren på.</p>
+        <p className="hint">Dig</p>
+        <div className="row">
+          {['Trusser', 'G-streng', 'BH', 'Strømper', 'Hofteholder', 'Babydoll', 'Korset', 'Sissy-kjole', 'Paryk', 'Choker'].map((title) => (
+            <button
+              key={'u-'+title}
+              type="button"
+              className={profile.lingerieUser.includes(title) ? 'chip on' : 'chip'}
+              onClick={() => setProfile({
+                ...profile,
+                lingerieUser: profile.lingerieUser.includes(title)
+                  ? profile.lingerieUser.filter((x) => x !== title)
+                  : [...profile.lingerieUser, title],
+              })}
+            >{title}</button>
+          ))}
+        </div>
+        <p className="hint">Partner</p>
+        <div className="row">
+          {['Trusser', 'G-streng', 'BH', 'Strømper', 'Hofteholder', 'Babydoll', 'Korset', 'Sissy-kjole', 'Paryk', 'Choker', 'Åben kittel'].map((title) => (
+            <button
+              key={'p-'+title}
+              type="button"
+              className={profile.lingeriePartner.includes(title) ? 'chip on' : 'chip'}
+              onClick={() => setProfile({
+                ...profile,
+                lingeriePartner: profile.lingeriePartner.includes(title)
+                  ? profile.lingeriePartner.filter((x) => x !== title)
+                  : [...profile.lingeriePartner, title],
+              })}
+            >{title}</button>
+          ))}
+        </div>
+
         <h2>Ord chatten må bruge</h2>
         <label className="field">
           Plus-liste
@@ -1899,10 +2099,38 @@ export default function App() {
             </p>
           ))}
         </div>
+        <div className="row">
+          <button
+            className="primary"
+            onClick={() => {
+              setAftercareReason('finish')
+              setNear('ok')
+              setPartnerHeat(20)
+              setUserHeat(12)
+              setRunning(true)
+              setPhase('session')
+              push(aiLine('Igen. Tøjet bliver hvor det er. Vi tager den fra toppen.'))
+            }}
+          >
+            En gang til
+          </button>
+          <button
+            className="ghost"
+            onClick={() => {
+              push(aiLine(aftercare(profile, aftercareReason)))
+            }}
+          >
+            Hold mig
+          </button>
+        </div>
         <button
-          className="primary"
+          className="ghost"
           onClick={() => {
             dropMedia()
+            if (profile.privacyMode === 'private') {
+              setGallery([])
+              setProfile((current) => ({ ...current, partnerImageUrl: undefined }))
+            }
             setPhase('setup')
             setLines([])
           }}
@@ -1949,7 +2177,7 @@ export default function App() {
           )}
         </button>
         <div className="partner-details">
-          <span className="partner-status"><i /> AI-partner</span>
+          <span className="partner-status"><i /> {partnerHeat >= 100 ? 'kommer…' : partnerHeat >= 80 ? (profile.figure === 'mistress' ? 'ahh… vent…' : 'ahh… hold…') : 'AI-partner'}</span>
           <strong>{partnerName}</strong>
           <small>{activeScene?.title || 'Privat chat'} · {profile.nsfw ? 'Fræk' : 'Tøjet på'} · cyklus {cycle}</small>
           <small className="privacy-status">
@@ -1962,6 +2190,25 @@ export default function App() {
         </div>
         <div className="chat-tools">
           <button className="note-button" onClick={panic}>Noter</button>
+          <button
+            type="button"
+            className={soundOn ? 'note-button on' : 'note-button'}
+            aria-pressed={soundOn}
+            onClick={() => setSoundOn((on) => {
+              const next = !on
+              if (next && !soundContextRef.current) {
+                try {
+                  soundContextRef.current = new AudioContext()
+                  void soundContextRef.current.resume()
+                } catch {
+                  soundContextRef.current = null
+                }
+              }
+              return next
+            })}
+          >
+            {soundOn ? 'Lyd til' : 'Lyd fra'}
+          </button>
           <button className="safe" onClick={() => tickSession('safe')}>
             {profile.limits.safeword}
           </button>
@@ -1985,6 +2232,10 @@ export default function App() {
         </div>
       </section>
 
+
+      {(edgeMode !== 'idle' || strokeLeft > 0) && (
+        <p className="hint">{edgeMode === 'play' ? `Spil pik · ${edgeLeft}s` : edgeMode === 'hold' ? `Stop · ${edgeLeft}s` : ''}{strokeLeft ? ` · ryk tilbage: ${strokeLeft}` : ''}</p>
+      )}
       {bodyOpen && (
         <section className="body-board" aria-label="Berør AI-partnerens krop">
           <div className="body-board-head">
@@ -2092,7 +2343,21 @@ export default function App() {
           <span>Ordren passer til scenen, din krop og dit legetøj.</span>
         </div>
         <div className="session-actions" aria-label="Hurtige scenevalg">
-          <button disabled={aiThinking} onClick={() => void sendCloseMoment()}>Næsten</button>
+                    <button type="button" disabled={aiThinking} onClick={() => {
+            setStrokeLeft(10)
+            void sendAiRequest('Ti ryk. Tæl med. Stop efter ti.', 'task', '10 ryk')
+          }}>10 ryk</button>
+          <button type="button" className={edgeMode === 'play' ? 'chip on' : 'chip'} onClick={() => {
+            setEdgeMode('play')
+            setEdgeLeft(45)
+            void sendAiRequest('Spil pikken nu. Langsomt. Stop når uret siger det.', 'task', 'Spil pik')
+          }}>Spil pik</button>
+          <button type="button" className={edgeMode === 'hold' ? 'chip on' : 'chip'} onClick={() => {
+            setEdgeMode('hold')
+            setEdgeLeft(20)
+            void sendAiRequest('Hænderne væk. Pikken må bare stå og pulserer.', 'task', 'Stop')
+          }}>Stop</button>
+<button disabled={aiThinking} onClick={() => void sendCloseMoment()}>Næsten</button>
           <button className="finish" disabled={aiThinking} onClick={() => void sendClimaxMoment()}>Jeg kommer</button>
           <button onClick={() => tickSession('ok')}>Igen</button>
           <button onClick={() => tickSession('too')}>For meget</button>

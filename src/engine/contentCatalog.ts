@@ -2,7 +2,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import type { PlanId } from './plans'
 import { getFirebaseDb } from './firebase'
 
-const CATALOG_VERSION = 2
+const CATALOG_VERSION = 3
 
 export interface ContentOption {
   id: string
@@ -86,6 +86,15 @@ const equipmentSeeds: EquipmentSeed[] = [
   ['jock', 'Jockstrap', 'Tøj og fetish', 'plus'],
   ['panties', 'Trusser', 'Tøj og fetish', 'plus'],
   ['lipstick', 'Læbestift', 'Tøj og fetish', 'plus'],
+  ['thong', 'G-streng', 'Lingeri', 'free'],
+  ['bra', 'BH', 'Lingeri', 'free'],
+  ['babydoll', 'Babydoll', 'Lingeri', 'solo'],
+  ['corset', 'Korset', 'Lingeri', 'solo'],
+  ['garter', 'Hofteholder', 'Lingeri', 'solo'],
+  ['cage_panties', 'Åbne trusser', 'Lingeri', 'plus'],
+  ['sissy_dress', 'Sissy-kjole', 'Sissy', 'plus', 'voksen sissy-kjole, 25+'],
+  ['sissy_wig', 'Paryk', 'Sissy', 'plus'],
+  ['choker', 'Choker', 'Lingeri', 'solo'],
   ['paw_gloves', 'Pote-handsker', 'Pet og worship', 'plus', 'voksen petplay uden barnesprog'],
   ['kneepads', 'Knæbeskyttere', 'Pet og worship', 'plus'],
   ['bowl', 'Skål', 'Pet og worship', 'plus', 'voksen petplay uden barnesprog'],
@@ -120,6 +129,7 @@ export const DEFAULT_CONTENT_CATALOG: ContentCatalog = {
     { id: 'anal', title: 'Røv', blurb: 'Plug, fingre, prostata. Som voksen fiktion.', prompt: 'Hold dig til det valgte voksne anal/prostate-tema uden farlige eller medicinske instruktioner.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 9 },
     { id: 'worship', title: 'Tilbed', blurb: 'Krop, hæle, slik. Ingen raceplay.', prompt: 'Fokusér på voksen worship, service og beundring.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 10 },
     { id: 'roleskin', title: 'Kostume', blurb: 'Maid, uniform, voksen pet. Ikke skole.', prompt: 'Brug kun tydeligt voksne rolletemaer og aldrig barnlige eller mindreårige roller.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 11 },
+    { id: 'sissy', title: 'Sissy', blurb: 'Lingeri, kjole, makeup. Voksen sissy-leg.', prompt: 'Voksen sissy-leg. Lingeri, ros, ydmyghed kun hvis slået til. Aldrig barnligt.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 12 },
   ],
 }
 

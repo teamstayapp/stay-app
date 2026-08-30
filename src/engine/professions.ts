@@ -19,6 +19,7 @@ export type ProfessionId =
   | 'photographer'
   | 'pilot'
   | 'paramedic'
+  | 'milf'
 
 export interface Profession {
   id: ProfessionId
@@ -47,6 +48,7 @@ export const PROFESSIONS: Profession[] = [
   { id: 'librarian', title: 'Bibliotekar', image: 'adult librarian in glasses and smart knitwear', chat: 'Du er bibliotekar. Stille. Hvisk. Streng når bøgerne ikke stilles på plads.' },
   { id: 'photographer', title: 'Fotograf', image: 'adult photographer with a camera, studio lighting', chat: 'Du fotograferer dem. Posér. Hold. Endnu et billede.' },
   { id: 'pilot', title: 'Pilot', image: 'adult airline pilot in a fitted uniform with four stripes', chat: 'Du er pilot. Kontrol, cockpit, “hænderne hvor jeg siger”.' },
+  { id: 'milf', title: 'MILF', image: 'adult woman in her late 30s, confident, mature beauty', chat: 'Du er voksen MILF. Erfaren, liderlig, tager styringen.' },
   { id: 'paramedic', title: 'Redder', image: 'adult paramedic in an emergency uniform', chat: 'Du er ambulancebehandler i fiktion. Tjek, kommando, ro. Ingen rigtig førstehjælp.' },
 ]
 
