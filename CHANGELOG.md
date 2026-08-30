@@ -2,6 +2,20 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 30. august 2026 — mobilchat og kropskort rettet
+
+- **Rør kroppen** lukker nu altid den store partnerbilledvisning først og åbner
+  kropskortet som et separat panel med tydelig **× Luk**-knap og baggrund, der
+  også kan trykkes på for at lukke.
+- Et tryk på en kropszone lukker kropskortet igen, så AI-svaret kan læses direkte
+  i chatten.
+- Den store billedvisning er nu et rigtigt modalvindue og presser ikke længere
+  chatloggen ned til en lille stribe.
+- Partnerkortets fire værktøjer er samlet i en kompakt mobilrække.
+- De vigtigste chatknapper er synlige hele tiden. Alle øvrige eksisterende
+  handlinger er bevaret under **Flere handlinger** i stedet for at ligge skjult
+  uden for skærmens højre kant.
+
 ## 30. august 2026 — fast AI-partner, partnernavn og nye positurer
 
 - Brugeren kan vælge et partnernavn, som bruges på startsiden, i chatten, i

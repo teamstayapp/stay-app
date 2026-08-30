@@ -1131,6 +1131,7 @@ export default function App() {
   async function touchBodyZone(zone: BodyZone) {
     if (aiThinking) return
     const visible = touchUserLine(zone)
+    setBodyOpen(false)
     const effectiveNsfw = profile.plan !== 'free' && profile.nsfw
     if (!aiIsConfigured()) {
       push(
@@ -2760,7 +2761,20 @@ export default function App() {
   return (
     <main className="shell session" data-running={running} data-stage={stageOpen}>
       {stageOpen && profile.partnerImageUrl && (
-        <section className="stage" aria-label={`${partnerName} i stort billede`}>
+        <>
+        <button
+          type="button"
+          className="modal-backdrop"
+          aria-label="Luk stort partnerbillede"
+          onClick={() => setStageOpen(false)}
+        />
+        <section className="stage" role="dialog" aria-modal="true" aria-label={`${partnerName} i stort billede`}>
+          <div className="stage-head">
+            <strong>{partnerName}</strong>
+            <button type="button" onClick={() => setStageOpen(false)} aria-label="Luk stort partnerbillede">
+              × Luk
+            </button>
+          </div>
           <button type="button" className="stage-hit" onClick={() => setStageOpen(false)}>
             <img src={profile.partnerImageUrl} alt={`AI-partneren ${partnerName}`} />
           </button>
@@ -2770,6 +2784,7 @@ export default function App() {
             {saveNotice && <small className="stage-note">{saveNotice}</small>}
           </div>
         </section>
+        </>
       )}
       <header className="partner-card">
         <button
@@ -2879,26 +2894,38 @@ export default function App() {
         <p className="hint">{edgeMode === 'play' ? `Spil pik · ${edgeLeft}s` : edgeMode === 'hold' ? `Stop · ${edgeLeft}s` : ''}{strokeLeft ? ` · ryk tilbage: ${strokeLeft}` : ''}</p>
       )}
       {bodyOpen && (
-        <section className="body-board" aria-label="Berør AI-partnerens krop">
+        <>
+        <button
+          type="button"
+          className="modal-backdrop"
+          aria-label="Luk kropskort"
+          onClick={() => setBodyOpen(false)}
+        />
+        <section className="body-board" role="dialog" aria-modal="true" aria-label="Berør AI-partnerens krop">
           <div className="body-board-head">
             <div>
               <strong>Rør ved {partnerName}</strong>
               <p>Tryk på en zone. Partneren reagerer i chatten.</p>
             </div>
-            <div className="body-view-switch" role="group" aria-label="Vælg kropsside">
-              <button
-                type="button"
-                className={bodyView === 'front' ? 'chip on' : 'chip'}
-                onClick={() => setBodyView('front')}
-              >
-                Forfra
-              </button>
-              <button
-                type="button"
-                className={bodyView === 'back' ? 'chip on' : 'chip'}
-                onClick={() => setBodyView('back')}
-              >
-                Bagfra
+            <div className="body-board-controls">
+              <div className="body-view-switch" role="group" aria-label="Vælg kropsside">
+                <button
+                  type="button"
+                  className={bodyView === 'front' ? 'chip on' : 'chip'}
+                  onClick={() => setBodyView('front')}
+                >
+                  Forfra
+                </button>
+                <button
+                  type="button"
+                  className={bodyView === 'back' ? 'chip on' : 'chip'}
+                  onClick={() => setBodyView('back')}
+                >
+                  Bagfra
+                </button>
+              </div>
+              <button type="button" className="body-close" onClick={() => setBodyOpen(false)}>
+                × Luk
               </button>
             </div>
           </div>
@@ -2932,6 +2959,7 @@ export default function App() {
             NSFW, plan, temaer og safeword gælder stadig.
           </small>
         </section>
+        </>
       )}
 
       <div className="log chat-log" aria-live="polite">
@@ -2970,47 +2998,57 @@ export default function App() {
       </div>
 
       <div className="chat-bottom">
-        <button
-          type="button"
-          className={bodyOpen ? 'body-dock on' : 'body-dock'}
-          aria-expanded={bodyOpen}
-          onClick={() => setBodyOpen((open) => !open)}
-        >
-          {bodyOpen ? 'Luk krop' : 'Rør kroppen'}
-        </button>
-        <div className="task-request">
-          <button type="button" disabled={aiThinking} onClick={() => void requestTask()}>
+        <div className="chat-primary-actions">
+          <button
+            type="button"
+            className={bodyOpen ? 'body-dock on' : 'body-dock'}
+            aria-expanded={bodyOpen}
+            onClick={() => {
+              if (bodyOpen) {
+                setBodyOpen(false)
+                return
+              }
+              setStageOpen(false)
+              setBodyOpen(true)
+            }}
+          >
+            {bodyOpen ? 'Luk krop' : 'Rør kroppen'}
+          </button>
+          <button className="task-main" type="button" disabled={aiThinking} onClick={() => void requestTask()}>
             {aiThinking ? 'Venter på kommando…' : 'Giv mig en ordre'}
           </button>
-          <div className="task-shortcuts" aria-label="Særlige opgaver">
+        </div>
+        <div className="chat-moment-actions" aria-label="Vigtige scenevalg">
+          <button type="button" disabled={aiThinking} onClick={() => void sendCloseMoment()}>Næsten</button>
+          <button type="button" onClick={() => tickSession('too')}>For meget</button>
+          <button type="button" className="finish" disabled={aiThinking} onClick={() => void sendClimaxMoment()}>Jeg kommer</button>
+        </div>
+        <details className="session-more">
+          <summary>Flere handlinger</summary>
+          <div className="session-actions" aria-label="Flere scenevalg">
             <button type="button" disabled={aiThinking} onClick={() => void requestInspection()}>Inspektion</button>
             <button type="button" disabled={aiThinking} onClick={() => void requestProtocol()}>Protocol</button>
+            <button type="button" disabled={aiThinking} onClick={() => {
+              setStrokeLeft(10)
+              void sendAiRequest('Ti ryk. Tæl med. Stop efter ti.', 'task', '10 ryk')
+            }}>10 ryk</button>
+            <button type="button" className={edgeMode === 'play' ? 'chip on' : 'chip'} onClick={() => {
+              setEdgeMode('play')
+              setEdgeLeft(45)
+              void sendAiRequest('Spil pikken nu. Langsomt. Stop når uret siger det.', 'task', 'Spil pik')
+            }}>Spil pik</button>
+            <button type="button" className={edgeMode === 'hold' ? 'chip on' : 'chip'} onClick={() => {
+              setEdgeMode('hold')
+              setEdgeLeft(20)
+              void sendAiRequest('Hænderne væk. Pikken må bare stå og pulserer.', 'task', 'Stop')
+            }}>Stop</button>
+            <button type="button" disabled={aiThinking} onClick={() => void sendRuinedMoment()}>Ruined</button>
+            <button type="button" onClick={() => tickSession('ok')}>Igen</button>
+            <button type="button" onClick={() => tickSession('deny')}>Nægt</button>
+            <button type="button" className="finish" onClick={() => tickSession('finish')}>Hold mig</button>
           </div>
           <span>Ordren passer til scenen, din krop og dit legetøj.</span>
-        </div>
-        <div className="session-actions" aria-label="Hurtige scenevalg">
-                    <button type="button" disabled={aiThinking} onClick={() => {
-            setStrokeLeft(10)
-            void sendAiRequest('Ti ryk. Tæl med. Stop efter ti.', 'task', '10 ryk')
-          }}>10 ryk</button>
-          <button type="button" className={edgeMode === 'play' ? 'chip on' : 'chip'} onClick={() => {
-            setEdgeMode('play')
-            setEdgeLeft(45)
-            void sendAiRequest('Spil pikken nu. Langsomt. Stop når uret siger det.', 'task', 'Spil pik')
-          }}>Spil pik</button>
-          <button type="button" className={edgeMode === 'hold' ? 'chip on' : 'chip'} onClick={() => {
-            setEdgeMode('hold')
-            setEdgeLeft(20)
-            void sendAiRequest('Hænderne væk. Pikken må bare stå og pulserer.', 'task', 'Stop')
-          }}>Stop</button>
-          <button type="button" disabled={aiThinking} onClick={() => void sendRuinedMoment()}>Ruined</button>
-<button disabled={aiThinking} onClick={() => void sendCloseMoment()}>Næsten</button>
-          <button className="finish" disabled={aiThinking} onClick={() => void sendClimaxMoment()}>Jeg kommer</button>
-          <button onClick={() => tickSession('ok')}>Igen</button>
-          <button onClick={() => tickSession('too')}>For meget</button>
-          <button onClick={() => tickSession('deny')}>Nægt</button>
-          <button className="finish" onClick={() => tickSession('finish')}>Hold mig</button>
-        </div>
+        </details>
 
         <form
           className="composer"
