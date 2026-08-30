@@ -871,14 +871,15 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
             {contentNotice && <p className="form-message success">{contentNotice}</p>}
           </div>
 
-          <div className="sheet">
-            <div className="catalog-heading">
+          <details className="sheet catalog-fold">
+            <summary className="catalog-heading">
               <div>
                 <p className="kicker">Afkrydsningsfelter</p>
                 <h2>Udstyr</h2>
+                <small>{contentCatalog.equipment.length} felter · tryk for at åbne</small>
               </div>
-              <button className="chip on" onClick={() => addContentOption('equipment')}>+ Tilføj udstyr</button>
-            </div>
+              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('equipment') }}>+ Tilføj udstyr</button>
+            </summary>
             <div className="catalog-list">
               {contentCatalog.equipment.map((item) => (
                 <article className="catalog-row" key={item.id}>
@@ -934,16 +935,17 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 </article>
               ))}
             </div>
-          </div>
+          </details>
 
-          <div className="sheet">
-            <div className="catalog-heading">
+          <details className="sheet catalog-fold">
+            <summary className="catalog-heading">
               <div>
                 <p className="kicker">Kort og AI-adfærd</p>
                 <h2>Temaer / fetish</h2>
+                <small>{contentCatalog.fetishes.length} felter · tryk for at åbne</small>
               </div>
-              <button className="chip on" onClick={() => addContentOption('fetishes')}>+ Tilføj tema</button>
-            </div>
+              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('fetishes') }}>+ Tilføj tema</button>
+            </summary>
             <div className="catalog-list">
               {contentCatalog.fetishes.map((item) => (
                 <article className="catalog-row fetish-editor" key={item.id}>
@@ -993,7 +995,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 </article>
               ))}
             </div>
-          </div>
+          </details>
         </section>
       )}
 

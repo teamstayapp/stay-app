@@ -77,12 +77,17 @@ import {
 } from './engine/usage'
 import {
   clearDeviceSession,
+  clearDeviceMemory,
   hasDeviceSession,
+  loadAvailability,
+  loadDeviceMemory,
   loadDeviceSession,
   loadNotificationStyle,
   loadPanicDestination,
   loadPrivacyMode,
   saveDeviceSession,
+  saveAvailability,
+  saveDeviceMemory,
   saveNotificationStyle,
   savePanicDestination,
   savePrivacyMode,
@@ -126,6 +131,34 @@ function playStaySound(kind: 'moan' | 'come', existingContext?: AudioContext) {
     if (!existingContext) window.setTimeout(() => void context.close(), 1500)
   } catch {
     // Lyd er valgfri og må aldrig blokere chatten.
+  }
+}
+
+async function requestStayNotifications(): Promise<string> {
+  if (!('Notification' in window)) return 'Denne enhed understøtter ikke webnotifikationer.'
+  const permission = await Notification.requestPermission()
+  return permission === 'granted'
+    ? ''
+    : 'Notifikationer blev ikke tilladt. Slå dem til i enhedens indstillinger og prøv igen.'
+}
+
+async function sendStayTaskNotification(discreet: boolean, text: string): Promise<void> {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return
+  const title = discreet ? 'Stay' : 'Mistress'
+  const options: NotificationOptions = {
+    body: discreet ? 'Ny note. Åbn appen.' : text.slice(0, 100),
+    silent: discreet,
+    tag: 'stay-available-task',
+  }
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready
+      await registration.showNotification(title, options)
+      return
+    }
+    new Notification(title, options)
+  } catch {
+    // Notifikationer er valgfrie og må aldrig blokere chatten.
   }
 }
 
@@ -176,6 +209,8 @@ const emptyProfile = (): Profile => ({
   lookWish: '',
   personality: 'cold',
   customWish: '',
+  memoryNotes: '',
+  lastMemory: '',
   nsfw: false,
   intensity: 'medium',
   fetishes: ['edge', 'power'],
@@ -225,6 +260,9 @@ export default function App() {
   const [imageNotice, setImageNotice] = useState('')
   const [gallery, setGallery] = useState<string[]>([])
   const [soundOn, setSoundOn] = useState(false)
+  const [availableOn, setAvailableOn] = useState(false)
+  const [availabilityNotice, setAvailabilityNotice] = useState('')
+  const [deviceSettingsUserId, setDeviceSettingsUserId] = useState('')
   const partnerPeakRef = useRef(false)
   const moanLockRef = useRef(false)
   const soundContextRef = useRef<AudioContext | null>(null)
@@ -270,6 +308,8 @@ export default function App() {
           setEntitlementLoaded(false)
           setFavoriteLook(null)
           setGallery([])
+          setAvailableOn(false)
+          setDeviceSettingsUserId('')
           setProfile((current) => ({ ...current, partnerImageUrl: undefined }))
         }
       }),
@@ -347,12 +387,52 @@ export default function App() {
     const privacyMode = loadPrivacyMode(account.id)
     const notificationStyle = loadNotificationStyle(account.id)
     const savedPanicDestination = loadPanicDestination(account.id)
+    const memory = privacyMode === 'device' ? loadDeviceMemory(account.id) : { notes: '', last: '' }
     void hasDeviceSession(account.id).then((available) => {
       setSavedSessionAvailable(available)
-      setProfile((current) => ({ ...current, privacyMode, notificationStyle }))
+      setAvailableOn(
+        loadAvailability(account.id)
+        && 'Notification' in window
+        && Notification.permission === 'granted',
+      )
+      setProfile((current) => ({
+        ...current,
+        privacyMode,
+        notificationStyle,
+        memoryNotes: memory.notes,
+        lastMemory: memory.last,
+      }))
       setPanicDestination(savedPanicDestination)
+      setDeviceSettingsUserId(account.id)
     })
   }, [account])
+
+  useEffect(() => {
+    if (!account || deviceSettingsUserId !== account.id || profile.privacyMode !== 'device') return
+    saveDeviceMemory(account.id, { notes: profile.memoryNotes, last: profile.lastMemory })
+  }, [account, deviceSettingsUserId, profile.lastMemory, profile.memoryNotes, profile.privacyMode])
+
+  useEffect(() => {
+    if (!account || deviceSettingsUserId !== account.id) return
+    saveAvailability(account.id, availableOn)
+  }, [account, availableOn, deviceSettingsUserId])
+
+  useEffect(() => {
+    if (!availableOn) return
+    const tasks = [
+      'Åbn chatten og bed om en ny opgave.',
+      'Tag en rolig pause, og fortæl chatten hvordan du har det.',
+      'Gør dit valgte udstyr klar, og fortsæt først når du er tryg.',
+      'Hænderne væk et øjeblik. Åbn chatten for næste besked.',
+      'Åbn Stay. Din AI-partner har en ny opgave til dig.',
+    ]
+    const timer = window.setInterval(() => {
+      const text = tasks[Math.floor(Math.random() * tasks.length)]
+      void sendStayTaskNotification(profile.notificationStyle !== 'explicit', text)
+      setAvailabilityNotice(text)
+    }, 45 * 60 * 1000)
+    return () => window.clearInterval(timer)
+  }, [availableOn, profile.notificationStyle])
 
   useEffect(() => {
     if (!account || profile.privacyMode !== 'device' || (phase !== 'session' && phase !== 'aftercare')) return
@@ -436,6 +516,7 @@ export default function App() {
     if (mode === 'private') {
       setGallery(profile.partnerImageUrl ? [profile.partnerImageUrl] : [])
       savedMediaBlobRef.current = null
+      clearDeviceMemory(account.id)
       void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
     } else {
       const sessionImages = gallery
@@ -761,15 +842,14 @@ export default function App() {
   useEffect(() => {
     const id = window.setInterval(() => {
       setPartnerHeat((heat) => {
-        let delta = running ? 2 : -1
-        if (near === 'close') delta += 3
-        if (near === 'too_much') delta = -5
-        if (profile.playMode === 'mutual' && userHeat >= 80) delta += 2
+        let delta = running ? 0 : -1
+        if (near === 'close') delta += 1
+        if (near === 'too_much') delta = -4
         return Math.max(0, Math.min(100, heat + delta))
       })
     }, 1800)
     return () => window.clearInterval(id)
-  }, [running, near, profile.playMode, userHeat])
+  }, [running, near])
 
 
   useEffect(() => {
@@ -798,6 +878,7 @@ export default function App() {
     aiRequestRef.current?.abort()
     setAiThinking(false)
     if (kind === 'safe') {
+      rememberCurrentScene()
       setBodyOpen(false)
       setStageOpen(false)
       setRunning(false)
@@ -843,9 +924,20 @@ export default function App() {
     setRunning(false)
     setBodyOpen(false)
     setAftercareReason('finish')
+    rememberCurrentScene()
     push(youLine('Finish'), aiLine(onFinish(profile)))
     dropMedia()
     setPhase('aftercare')
+  }
+
+  function rememberCurrentScene() {
+    const summary = lines
+      .filter((line) => line.from !== 'system')
+      .slice(-6)
+      .map((line) => `${line.from === 'you' ? 'Dig' : 'AI'}: ${line.text}`)
+      .join(' · ')
+      .slice(0, 400)
+    if (summary) setProfile((current) => ({ ...current, lastMemory: summary }))
   }
 
   async function sendAiRequest(
@@ -1877,6 +1969,23 @@ export default function App() {
           <span>{profile.customWish.trim() ? 'Dit eget ønske bruges i stedet for grundstilen.' : 'Valgfrit · højst 300 tegn'}</span>
         </label>
 
+        <label className="field custom-wish-field">
+          Det må AI-partneren huske
+          <textarea
+            value={profile.memoryNotes}
+            maxLength={600}
+            rows={4}
+            placeholder="Fx: Jeg kan bedst lide en rolig start, korte opgaver og at blive kaldt mit chatnavn."
+            onChange={(event) => setProfile({ ...profile, memoryNotes: event.target.value })}
+          />
+          <span>
+            {profile.privacyMode === 'device'
+              ? 'Gemmes kun på denne enhed · højst 600 tegn'
+              : 'Privat tilstand: bruges nu, men gemmes ikke til næste besøg'}
+          </span>
+        </label>
+        {profile.lastMemory && <p className="hint">Sidste scene: {profile.lastMemory}</p>}
+
         <h2>Intensitet</h2>
         <div className="row">
           {(['soft', 'medium', 'hard'] as Intensity[]).map((i) => (
@@ -2209,11 +2318,36 @@ export default function App() {
           >
             {soundOn ? 'Lyd til' : 'Lyd fra'}
           </button>
+          <button
+            type="button"
+            className={availableOn ? 'note-button on' : 'note-button'}
+            aria-pressed={availableOn}
+            onClick={() => {
+              void (async () => {
+                if (availableOn) {
+                  setAvailableOn(false)
+                  setAvailabilityNotice('Til rådighed er slået fra.')
+                  return
+                }
+                const error = await requestStayNotifications()
+                if (error) {
+                  setAvailabilityNotice(error)
+                  return
+                }
+                setAvailableOn(true)
+                setAvailabilityNotice('Til rådighed er slået til, mens appen er aktiv.')
+              })()
+            }}
+          >
+            {availableOn ? 'Til rådighed' : 'Ikke til rådighed'}
+          </button>
           <button className="safe" onClick={() => tickSession('safe')}>
             {profile.limits.safeword}
           </button>
         </div>
       </header>
+
+      {availabilityNotice && <p className="hint availability-notice">{availabilityNotice}</p>}
 
       <section className="heat-board" aria-label="Hvor tæt I er på at komme">
         <div className="heat-row">

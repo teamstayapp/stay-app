@@ -6,6 +6,8 @@ const FALLBACK_PREFIX = 'stay.saved-session.'
 const PRIVACY_PREFIX = 'stay.privacy-mode.'
 const NOTIFICATION_STYLE_PREFIX = 'stay.notification-style.'
 const PANIC_DESTINATION_PREFIX = 'stay.panic-destination.'
+const MEMORY_PREFIX = 'stay.memory.'
+const AVAILABLE_PREFIX = 'stay.available.'
 
 export type PanicDestinationMode = 'decoy' | 'weather' | 'calendar' | 'shortcut' | 'custom'
 
@@ -23,6 +25,11 @@ export interface DeviceSession {
   running: boolean
   savedAt: string
   media?: { kind: 'image' | 'video'; blob: Blob }
+}
+
+export interface DeviceMemory {
+  notes: string
+  last: string
 }
 
 interface StoredDeviceSession extends DeviceSession {
@@ -139,4 +146,35 @@ export function savePanicDestination(userId: string, destination: PanicDestinati
     customUrl: destination.customUrl.slice(0, 500),
     shortcutName: destination.shortcutName.slice(0, 100),
   }))
+}
+
+export function loadDeviceMemory(userId: string): DeviceMemory {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MEMORY_PREFIX + userId) || '') as Partial<DeviceMemory>
+    return {
+      notes: typeof parsed.notes === 'string' ? parsed.notes.slice(0, 600) : '',
+      last: typeof parsed.last === 'string' ? parsed.last.slice(0, 400) : '',
+    }
+  } catch {
+    return { notes: '', last: '' }
+  }
+}
+
+export function saveDeviceMemory(userId: string, memory: DeviceMemory): void {
+  localStorage.setItem(MEMORY_PREFIX + userId, JSON.stringify({
+    notes: memory.notes.slice(0, 600),
+    last: memory.last.slice(0, 400),
+  }))
+}
+
+export function clearDeviceMemory(userId: string): void {
+  localStorage.removeItem(MEMORY_PREFIX + userId)
+}
+
+export function loadAvailability(userId: string): boolean {
+  return localStorage.getItem(AVAILABLE_PREFIX + userId) === '1'
+}
+
+export function saveAvailability(userId: string, available: boolean): void {
+  localStorage.setItem(AVAILABLE_PREFIX + userId, available ? '1' : '0')
 }

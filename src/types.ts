@@ -91,6 +91,8 @@ export interface Profile {
   lookWish: string
   personality: Personality
   customWish: string
+  memoryNotes: string
+  lastMemory: string
   nsfw: boolean
   intensity: Intensity
   fetishes: FetishId[]

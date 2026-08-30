@@ -1347,3 +1347,10 @@ table.admin th { color: var(--muted); font-weight: 500; }
 }
 .partner-gallery button.on { outline: 2px solid #e08a6a; }
 .partner-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.catalog-fold > summary.catalog-heading {
+  cursor: pointer;
+  list-style: none;
+}
+.catalog-fold > summary.catalog-heading::-webkit-details-marker { display: none; }
+.catalog-fold[open] > summary { margin-bottom: 0.8rem; }

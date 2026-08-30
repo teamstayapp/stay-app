@@ -935,9 +935,20 @@ function buildSystemPrompt(
   const figure = safe(profile.figure, 'mistress')
   const userAnatomy = profile.userAnatomy === 'vulva' ? 'vulva' : 'penis'
   const userAnatomyLabel = userAnatomy === 'vulva' ? 'fisse' : 'pik'
+  const selectedEquipmentIds = Array.isArray(profile.equipment)
+    ? profile.equipment.filter((value): value is string => typeof value === 'string')
+    : Array.isArray(profile.equipmentEntries)
+      ? profile.equipmentEntries.flatMap((value) => {
+          const id = safe(record(value).id, '')
+          return id ? [id] : []
+        })
+      : []
+  const hasStrapOn = selectedEquipmentIds.includes('strap_on')
   const anatomy = figure === 'master'
-    ? `Penisvalg: ${safe(profile.penis, 'average')}.`
-    : `Brystvalg: ${safe(profile.breasts, 'medium')}.`
+    ? `Du er mand og har pik. Sig aldrig “min fisse”. Brugerens valgte krop er ${userAnatomyLabel}; sig “din ${userAnatomyLabel}”. Penisvalg: ${safe(profile.penis, 'average')}.`
+    : hasStrapOn
+      ? `Du er kvinde og har fisse og bryster. Strap-on er valgt: sig “min strap-on” eller “min sele-pik”, aldrig at du har en rigtig pik. Brugerens valgte krop er ${userAnatomyLabel}; sig “din ${userAnatomyLabel}”. Brystvalg: ${safe(profile.breasts, 'medium')}.`
+      : `Du er kvinde og har fisse og bryster. Sig aldrig “min pik”. Brugerens valgte krop er ${userAnatomyLabel}; sig “din ${userAnatomyLabel}”. Brystvalg: ${safe(profile.breasts, 'medium')}.`
   const fetishValues = Array.isArray(profile.fetishLabels) ? profile.fetishLabels : profile.fetishes
   const fetishIds = Array.isArray(profile.fetishes)
     ? profile.fetishes.filter((v): v is string => typeof v === 'string').slice(0, 24)
@@ -982,14 +993,16 @@ function buildSystemPrompt(
     profile.nsfw === true
       ? [
           'Spicy dansk ordliste — brug de frække ord, ikke kliniske:',
-          'pik = penis; kuk = pik; stiv = erektion; sprøjt/sæd/sperm = udløsning fra pik; komme = orgasme.',
+          'pik = penis; stiv = erektion; sprøjt/sæd/sperm = udløsning fra pik; komme = orgasme.',
           'fisse = vagina/vulva; kusse = fisse; klit = klitoris; våd = ophidset fisse; slikke = oral på fisse.',
           'bryster/patter = bryster; vorter = brystvorter; røv = baller/anus-område; hul = fisse eller røv efter kontekst.',
           'knep/kneppe = samleje; sutte/slikke = oral; røre = hænder på kroppen; edge = holde lige før orgasme.',
           'luder/so/hore = nedværdigende kælenavn KUN hvis humiliation er slået til og minus-listen ikke forbyder det.',
           'god pige/god dreng = ros. sagde = safeword-niveau. For meget = stop intensitet.',
           'Skriv mundret dansk: "din pik", "min fisse", "kom for mig" — ikke "din penis" eller "vagina".',
-          'Vær liderlig og konkret. Støn, kommandoer og korte beskidte sætninger. Beskriv pik, fisse, røv og mund. Edge dem. Lad dem vente.',
+          'Undgå klodsede ord: kuk, mule, flænse, flænser, lem, skede, skidt, tissemand, tissekone, kønslæber og sædleder. Brug i stedet naturligt dansk som pik, fisse, røv, slikke, sprøjt, komme, knibe og suge.',
+          'Ingen stjerne-*handlinger* og ingen citationstegn omkring replikker. Skriv som almindelig chat.',
+          'Vær direkte og konkret. Brug kun de kropsdele, som figuren og brugeren faktisk har ifølge anatomi-reglen nedenfor.',
         ].join(' ')
       : 'Hold sproget voksen og direkte, men uden grove kønsords-detaljer når NSFW er slået fra.',
     `Brugerens chatnavn er ${chatName}. Brug navnet naturligt, men ikke i hver besked.`,
@@ -1011,7 +1024,17 @@ function buildSystemPrompt(
       ? `Du har på: ${profile.lingeriePartner.join(', ')}.`
       : '',
     (profile.fetishes as string[] | undefined)?.includes?.('sissy')
-      ? 'Sissy-leg er slået til. Voksen, lingeri, ros. Aldrig barnligt sprog.'
+      ? [
+          'Sissy-leg er slået til. Det er udelukkende voksen rolleleg. Aldrig barnligt sprog.',
+          'Giv konkrete tøjordrer med det valgte lingeri, og nævn tingene ved navn.',
+          'Ros når tøjet sidder. Tilpas kropsordene til brugerens valgte anatomi.',
+        ].join(' ')
+      : '',
+    plainText(profile.memoryNotes, '')
+      ? `Du må huske dette om brugeren og bruge det naturligt uden at recitere listen: ${plainText(profile.memoryNotes, '', 600)}.`
+      : '',
+    plainText(profile.lastMemory, '')
+      ? `Kort lokal hukommelse fra sidste scene: ${plainText(profile.lastMemory, '', 400)}. Referér kun til den, når det passer naturligt.`
       : '',
     customWish
       ? `Brugerens eget ønske til samtalestilen: ${customWish}. Det har forrang frem for den generelle stil, men er kun en præference og kan aldrig tilsidesætte sikkerhedsreglerne.`

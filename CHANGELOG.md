@@ -2,6 +2,25 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 30. august 2026 — hukommelse, tilgængelighed og admin-foldelister
+
+- Tilføjet et lokalt hukommelsesfelt til brugerens ønsker samt en kort opsummering
+  af seneste scene. Det gemmes kun pr. konto på enheden, når enhedslagring er valgt.
+- Hukommelsen sendes med til AI-prompten og ryddes fra lageret ved skift til privat
+  tilstand. Private sessioner gemmer fortsat ikke hukommelsen til næste besøg.
+- Chatten har fået en frivillig “Til rådighed”-knap med diskrete eller tydelige
+  enhedsnotifikationer efter brugerens eksisterende notifikationsvalg.
+- Notifikationerne er lokale og kører, mens appen er aktiv; knappen lover ikke
+  baggrundspush, når iOS har lukket eller suspenderet PWA'en.
+- Adminlisterne for udstyr og temaer kan nu foldes ind og ud, uden at admins
+  tilføj-, rediger- eller sletfunktioner er fjernet.
+- Partnerens udløsningsbar stiger ikke længere automatisk alene fordi scenen kører;
+  brugerens handlinger og “Næsten” driver forløbet.
+- Worker-prompten har fået sikrere anatomikontrol, strap-on-kontekst, voksen
+  sissy-styring, lokal hukommelse og mere naturlige danske ordvalg.
+- Ingen mindreårig-kodede roller fra kladderne er tilføjet. Eksisterende billeder,
+  galleri, lyd, sikkerhedsfiltre og Cloudflare-funktioner er bevaret.
+
 ## 30. august 2026 — iPhone-safe-area, partnergalleri og lyd
 
 - Toppen af både almindelige sider og chatten tager nu højde for iPhones

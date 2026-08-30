@@ -95,6 +95,8 @@ export async function askAi({
         lingeriePartner: profile.lingeriePartner,
         personality: profile.personality,
         customWish: profile.customWish,
+        memoryNotes: profile.memoryNotes,
+        lastMemory: profile.lastMemory,
         intensity: profile.intensity,
         nsfw: profile.nsfw,
         fetishes: profile.fetishes,
