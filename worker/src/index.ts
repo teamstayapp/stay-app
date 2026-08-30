@@ -8,6 +8,25 @@ export interface Env {
   ALLOWED_ORIGIN?: string
   FIREBASE_PROJECT_ID?: string
   ADMIN_EMAIL?: string
+  PUSH_SUBS?: PushSubscriptionStore
+  VAPID_PUBLIC?: string
+  VAPID_PRIVATE?: string
+  VAPID_SUBJECT?: string
+}
+
+interface PushSubscriptionStore {
+  get(key: string): Promise<string | null>
+  put(key: string, value: string): Promise<void>
+  delete(key: string): Promise<void>
+  list(options?: { limit?: number; cursor?: string }): Promise<{
+    keys: Array<{ name: string }>
+    list_complete: boolean
+    cursor?: string
+  }>
+}
+
+interface WorkerExecutionContext {
+  waitUntil(promise: Promise<unknown>): void
 }
 
 type ChatRole = 'user' | 'assistant'
@@ -26,6 +45,7 @@ const ALLOWED_IMAGE_MODELS = new Set([
   'lustify-v8',
   'venice-sd35',
 ])
+const PARTNER_POSE_MODEL = 'qwen-edit-uncensored'
 const EQUIPMENT_LABELS: Record<string, string> = {
   lube: 'glidecreme',
   condom: 'kondom; neutralt og uden skam',
@@ -112,6 +132,7 @@ const TOUCH_ZONE_LABELS = {
   thigh: 'lår',
   hand: 'hånd',
   ass: 'bagdel',
+  feet: 'fødder',
 } as const
 type TouchZoneId = keyof typeof TOUCH_ZONE_LABELS
 
@@ -125,11 +146,29 @@ export default {
         ok: true,
         venice: Boolean(env.VENICE_API_KEY),
         model: env.VENICE_MODEL || MODEL,
-        features: { chat: true, imageGeneration: true, vision: true, usageLimits: true, accountAccess: true },
+        features: {
+          chat: true,
+          imageGeneration: true,
+          consistentPartnerPoses: true,
+          vision: true,
+          usageLimits: true,
+          accountAccess: true,
+          webPush: Boolean(env.PUSH_SUBS && env.VAPID_PUBLIC && env.VAPID_PRIVATE),
+        },
       })
     }
 
-    const validPost = req.method === 'POST' && ['/chat', '/vision', '/image/generate'].includes(url.pathname)
+    if (req.method === 'POST' && (url.pathname === '/push/subscribe' || url.pathname === '/push/unsubscribe')) {
+      const contentLength = Number(req.headers.get('content-length') || 0)
+      if (contentLength > MAX_BODY_BYTES) return json(req, env, { error: 'Beskeden er for stor' }, 413)
+      const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
+      if (!body) return json(req, env, { error: 'Ugyldig JSON' }, 400)
+      return url.pathname === '/push/subscribe'
+        ? subscribePush(req, env, body)
+        : unsubscribePush(req, env, body)
+    }
+
+    const validPost = req.method === 'POST' && ['/chat', '/vision', '/image/generate', '/image/pose'].includes(url.pathname)
     if (!validPost) {
       return json(req, env, { error: 'not found' }, 404)
     }
@@ -138,7 +177,9 @@ export default {
     }
 
     const contentLength = Number(req.headers.get('content-length') || 0)
-    const maxBodyBytes = url.pathname === '/vision' ? MAX_VISION_BODY_BYTES : MAX_BODY_BYTES
+    const maxBodyBytes = url.pathname === '/vision' || url.pathname === '/image/pose'
+      ? MAX_VISION_BODY_BYTES
+      : MAX_BODY_BYTES
     if (contentLength > maxBodyBytes) {
       return json(req, env, { error: 'Beskeden er for stor' }, 413)
     }
@@ -147,6 +188,7 @@ export default {
     if (!body) return json(req, env, { error: 'Ugyldig JSON' }, 400)
 
     if (url.pathname === '/image/generate') return generateImage(req, env, body)
+    if (url.pathname === '/image/pose') return generatePartnerPose(req, env, body)
     if (url.pathname === '/vision') return analyzeImage(req, env, body)
 
     const messages = cleanMessages(body.messages)
@@ -211,6 +253,10 @@ export default {
     const recorded = await recordUsage(env, usageGate.gate, selectedModel, data?.usage)
     if (!recorded) return json(req, env, { error: 'AI svarede, men forbruget kunne ikke registreres. Prøv igen.' }, 503)
     return json(req, env, { reply, usage: usageSummary(usageGate.gate) })
+  },
+
+  async scheduled(_controller: unknown, env: Env, context: WorkerExecutionContext): Promise<void> {
+    context.waitUntil(runPushSchedule(env))
   },
 }
 
@@ -324,6 +370,64 @@ async function generateImage(req: Request, env: Env, body: Record<string, unknow
   const recorded = await recordUsage(env, usageGate.gate, imageModel)
   if (!recorded) return json(req, env, { error: 'Billedet blev lavet, men forbruget kunne ikke registreres. Prøv igen.' }, 503)
   return json(req, env, { imageUrl, model: imageModel, usage: usageSummary(usageGate.gate) })
+}
+
+async function generatePartnerPose(req: Request, env: Env, body: Record<string, unknown>): Promise<Response> {
+  const referenceImageUrl = typeof body.referenceImageUrl === 'string' ? body.referenceImageUrl : ''
+  if (!/^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/=]+$/.test(referenceImageUrl)) {
+    return json(req, env, { error: 'Det faste partnerbillede har et ugyldigt format' }, 400)
+  }
+  if (referenceImageUrl.length > 5_500_000) {
+    return json(req, env, { error: 'Det faste partnerbillede er for stort' }, 413)
+  }
+
+  const sceneResult = await loadScene(req, env, safe(body.sceneId, 'soft-care'))
+  if ('error' in sceneResult) return json(req, env, { error: sceneResult.error }, sceneResult.status)
+  const usageGate = await checkUsage(req, env, 'imageGeneration')
+  if ('error' in usageGate) return json(req, env, { error: usageGate.error }, usageGate.status)
+  const profile = profileForPlan(body.profile, usageGate.gate.plan)
+  const prompt = buildPartnerPosePrompt(profile, sceneResult.scene)
+  const referenceBase64 = referenceImageUrl.slice(referenceImageUrl.indexOf(',') + 1)
+
+  let venice: Response
+  try {
+    venice = await fetch('https://api.venice.ai/api/v1/image/edit', {
+      method: 'POST',
+      signal: AbortSignal.timeout(90_000),
+      headers: {
+        Authorization: `Bearer ${env.VENICE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: PARTNER_POSE_MODEL,
+        image: referenceBase64,
+        prompt,
+        aspect_ratio: '2:3',
+        resolution: '1K',
+        output_format: 'webp',
+        safe_mode: profile.nsfw !== true,
+        enhance_prompt: false,
+      }),
+    })
+  } catch {
+    return json(req, env, { error: 'Billedmodellen kunne ikke kontaktes' }, 504)
+  }
+
+  if (!venice.ok) {
+    const message = await venice.text().catch(() => '')
+    return json(req, env, {
+      error: plainText(message, `Venice-positurfejl (${venice.status})`, 200),
+    }, 502)
+  }
+  const bytes = new Uint8Array(await venice.arrayBuffer())
+  if (bytes.length < 10_000) {
+    return json(req, env, { error: 'Billedmodellen svarede med et tomt eller beskadiget billede. Prøv igen.' }, 502)
+  }
+  const mime = venice.headers.get('content-type')?.split(';')[0] || 'image/webp'
+  const imageUrl = `data:${mime.startsWith('image/') ? mime : 'image/webp'};base64,${bytesToBase64(bytes)}`
+  const recorded = await recordUsage(env, usageGate.gate, PARTNER_POSE_MODEL)
+  if (!recorded) return json(req, env, { error: 'Billedet blev lavet, men forbruget kunne ikke registreres. Prøv igen.' }, 503)
+  return json(req, env, { imageUrl, model: PARTNER_POSE_MODEL, usage: usageSummary(usageGate.gate) })
 }
 
 async function analyzeImage(req: Request, env: Env, body: Record<string, unknown>): Promise<Response> {
@@ -486,6 +590,31 @@ function buildImagePrompt(profile: Record<string, unknown>, scene: SceneInput): 
     profile.plan === 'plus' && profile.nsfw === true && scene.plusImagePrompt ? scene.plusImagePrompt : '',
     'Full body standing, head to toes visible in frame. Entire figure from hair to feet. Vertical 2:3. No cropped legs, no headshot, no black bars.',
   ].filter(Boolean).join(' ')
+}
+
+function buildPartnerPosePrompt(profile: Record<string, unknown>, scene: SceneInput): string {
+  const poses = [
+    'a relaxed full-body standing pose at a three-quarter angle, both feet visible',
+    'a full-body seated pose on the edge of a chair or bed, hands visible and feet in frame',
+    'a confident full-body walking pose with one small step, face turned toward the camera',
+    'a full-body back-facing pose looking naturally over one shoulder, head and feet visible',
+  ]
+  const pose = poses[Math.abs(randomImageSeed()) % poses.length]
+  return [
+    'Edit the supplied reference image. Keep the exact same fictional adult person.',
+    'Preserve identity: same face, facial proportions, eyes, nose, mouth, jaw, hair, skin tone, body shape and body proportions.',
+    'Do not create a second person and do not change age, gender presentation or recognizable identity.',
+    `Change the pose and composition to ${pose}.`,
+    buildImagePrompt(profile, scene),
+  ].join(' ')
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let offset = 0; offset < bytes.length; offset += 32_768) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32_768))
+  }
+  return btoa(binary)
 }
 
 function randomImageSeed(): number {
@@ -682,6 +811,211 @@ function firebaseIdentity(token: string): { uid: string; email: string } | null 
   } catch {
     return null
   }
+}
+
+interface StoredPushSubscription {
+  uid: string
+  endpoint: string
+  intervalMin: number
+  count: number
+  mode: 'random' | 'fixed'
+  day: string
+  remaining: number
+  nextDue: number
+}
+
+async function subscribePush(req: Request, env: Env, body: Record<string, unknown>): Promise<Response> {
+  if (!env.PUSH_SUBS || !env.VAPID_PUBLIC || !env.VAPID_PRIVATE) {
+    return json(req, env, { error: 'Web Push er ikke konfigureret på Cloudflare endnu.' }, 503)
+  }
+  const identity = await authenticatePushRequest(req, env)
+  if (!identity) return json(req, env, { error: 'Log ind igen for at aktivere Web Push.' }, 401)
+  const subscription = record(body.subscription)
+  const endpoint = plainText(subscription.endpoint, '', 2_000)
+  if (!validPushEndpoint(endpoint)) return json(req, env, { error: 'Ugyldigt Web Push-abonnement.' }, 400)
+  const intervalMin = Math.max(5, Math.min(360, Math.round(number(body.intervalMin, 45))))
+  const count = Math.max(1, Math.min(24, Math.round(number(body.count, 6))))
+  const mode = body.mode === 'fixed' ? 'fixed' : 'random'
+  const day = new Date().toISOString().slice(0, 10)
+  const storageKey = await pushStorageKey(identity.uid, endpoint)
+  const previousRaw = await env.PUSH_SUBS.get(storageKey)
+  let previous: Partial<StoredPushSubscription> = {}
+  try {
+    previous = previousRaw ? JSON.parse(previousRaw) as Partial<StoredPushSubscription> : {}
+  } catch {
+    previous = {}
+  }
+  const sameDay = previous.day === day && previous.endpoint === endpoint
+  const row: StoredPushSubscription = {
+    uid: identity.uid,
+    endpoint,
+    intervalMin,
+    count,
+    mode,
+    day,
+    remaining: sameDay ? Math.max(0, Math.min(count, number(previous.remaining, count))) : count,
+    nextDue: sameDay && number(previous.nextDue, 0) > Date.now()
+      ? number(previous.nextDue, 0)
+      : Date.now() + nextPushDelay(intervalMin, mode),
+  }
+  await env.PUSH_SUBS.put(storageKey, JSON.stringify(row))
+  return json(req, env, { ok: true, intervalMin, count, mode })
+}
+
+async function unsubscribePush(req: Request, env: Env, body: Record<string, unknown>): Promise<Response> {
+  if (!env.PUSH_SUBS) return json(req, env, { ok: true })
+  const identity = await authenticatePushRequest(req, env)
+  if (!identity) return json(req, env, { error: 'Log ind igen for at ændre Web Push.' }, 401)
+  const endpoint = plainText(body.endpoint, '', 2_000)
+  if (validPushEndpoint(endpoint)) await env.PUSH_SUBS.delete(await pushStorageKey(identity.uid, endpoint))
+  return json(req, env, { ok: true })
+}
+
+async function authenticatePushRequest(req: Request, env: Env): Promise<{ uid: string; email: string } | null> {
+  if (!env.FIREBASE_PROJECT_ID) return null
+  const authorization = req.headers.get('authorization') || ''
+  if (!authorization.startsWith('Bearer ')) return null
+  const token = authorization.slice(7)
+  const identity = firebaseIdentity(token)
+  if (!identity) return null
+  const verification = await firestoreRead(env, token, `userEntitlements/${encodeURIComponent(identity.uid)}`)
+  return verification.status === 200 || verification.status === 404 ? identity : null
+}
+
+async function runPushSchedule(env: Env): Promise<void> {
+  if (!env.PUSH_SUBS || !env.VAPID_PUBLIC || !env.VAPID_PRIVATE) return
+  let cursor: string | undefined
+  for (let page = 0; page < 10; page += 1) {
+    const listed = await env.PUSH_SUBS.list({ limit: 100, ...(cursor ? { cursor } : {}) })
+    for (const key of listed.keys) await processPushSubscription(env, key.name)
+    if (listed.list_complete || !listed.cursor) break
+    cursor = listed.cursor
+  }
+}
+
+async function processPushSubscription(env: Env, key: string): Promise<void> {
+  const raw = await env.PUSH_SUBS?.get(key)
+  if (!raw || !env.PUSH_SUBS) return
+  let row: StoredPushSubscription
+  try {
+    row = JSON.parse(raw) as StoredPushSubscription
+  } catch {
+    await env.PUSH_SUBS.delete(key)
+    return
+  }
+  if (!validPushEndpoint(row.endpoint)) {
+    await env.PUSH_SUBS.delete(key)
+    return
+  }
+  const now = Date.now()
+  const day = new Date(now).toISOString().slice(0, 10)
+  if (row.day !== day) {
+    row.day = day
+    row.remaining = Math.max(1, Math.min(24, number(row.count, 6)))
+    row.nextDue = now + nextPushDelay(row.intervalMin, row.mode)
+    await env.PUSH_SUBS.put(key, JSON.stringify(row))
+    return
+  }
+  if (row.remaining <= 0 || row.nextDue > now) return
+
+  const response = await sendEmptyWebPush(row.endpoint, env).catch(() => null)
+  if (response?.status === 404 || response?.status === 410) {
+    await env.PUSH_SUBS.delete(key)
+    return
+  }
+  if (!response?.ok) {
+    row.nextDue = now + 15 * 60_000
+    await env.PUSH_SUBS.put(key, JSON.stringify(row))
+    return
+  }
+  row.remaining = Math.max(0, row.remaining - 1)
+  row.nextDue = now + nextPushDelay(row.intervalMin, row.mode)
+  await env.PUSH_SUBS.put(key, JSON.stringify(row))
+}
+
+async function sendEmptyWebPush(endpoint: string, env: Env): Promise<Response> {
+  const authorization = await createVapidAuthorization(endpoint, env)
+  return fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: authorization,
+      TTL: '120',
+      Urgency: 'normal',
+    },
+  })
+}
+
+async function createVapidAuthorization(endpoint: string, env: Env): Promise<string> {
+  const publicBytes = base64UrlDecode(env.VAPID_PUBLIC || '')
+  if (publicBytes.length !== 65 || publicBytes[0] !== 4) throw new Error('Ugyldig VAPID public key')
+  const privateValue = (env.VAPID_PRIVATE || '').trim()
+  if (!privateValue) throw new Error('VAPID private key mangler')
+  const signingKey = await crypto.subtle.importKey(
+    'jwk',
+    {
+      kty: 'EC',
+      crv: 'P-256',
+      x: base64UrlEncode(publicBytes.slice(1, 33)),
+      y: base64UrlEncode(publicBytes.slice(33, 65)),
+      d: privateValue,
+      ext: true,
+      key_ops: ['sign'],
+    },
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign'],
+  )
+  const header = base64UrlEncode(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })))
+  const payload = base64UrlEncode(new TextEncoder().encode(JSON.stringify({
+    aud: new URL(endpoint).origin,
+    exp: Math.floor(Date.now() / 1_000) + 12 * 60 * 60,
+    sub: env.VAPID_SUBJECT || 'mailto:teamstayapp@gmail.com',
+  })))
+  const unsigned = `${header}.${payload}`
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    signingKey,
+    new TextEncoder().encode(unsigned),
+  )
+  return `vapid t=${unsigned}.${base64UrlEncode(new Uint8Array(signature))}, k=${env.VAPID_PUBLIC}`
+}
+
+async function pushStorageKey(uid: string, endpoint: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint))
+  return `push:${uid}:${base64UrlEncode(new Uint8Array(digest)).slice(0, 32)}`
+}
+
+function validPushEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint)
+    return url.protocol === 'https:'
+      && !/^(localhost|127\.|0\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+function nextPushDelay(intervalMin: number, mode: 'random' | 'fixed'): number {
+  const base = Math.max(5, Math.min(360, number(intervalMin, 45))) * 60_000
+  if (mode === 'fixed') return base
+  const low = Math.max(5 * 60_000, base * 0.35)
+  const high = Math.min(360 * 60_000, base * 2.2)
+  return Math.round(low + Math.random() * (high - low))
+}
+
+function base64UrlDecode(value: string): Uint8Array {
+  const normalized = value.replaceAll('-', '+').replaceAll('_', '/')
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+  const binary = atob(padded)
+  const output = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) output[index] = binary.charCodeAt(index)
+  return output
+}
+
+function base64UrlEncode(value: Uint8Array): string {
+  let binary = ''
+  for (const byte of value) binary += String.fromCharCode(byte)
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
 }
 
 interface FirestoreReadResult {
@@ -932,6 +1266,7 @@ function buildSystemPrompt(
   const profile = record(profileValue)
   const state = record(stateValue)
   const chatName = displayName(profile.chatName, 'brugeren')
+  const partnerName = displayName(profile.partnerName, safe(profile.figure, 'mistress') === 'master' ? 'Master' : 'Mistress')
   const figure = safe(profile.figure, 'mistress')
   const userAnatomy = profile.userAnatomy === 'vulva' ? 'vulva' : 'penis'
   const userAnatomyLabel = userAnatomy === 'vulva' ? 'fisse' : 'pik'
@@ -1006,6 +1341,7 @@ function buildSystemPrompt(
         ].join(' ')
       : 'Hold sproget voksen og direkte, men uden grove kønsords-detaljer når NSFW er slået fra.',
     `Brugerens chatnavn er ${chatName}. Brug navnet naturligt, men ikke i hver besked.`,
+    `Dit navn i denne samtale er ${partnerName}. Brug det konsekvent, hvis du omtaler dig selv.`,
     `Brugerrolle: ${safe(profile.role, 'slave')}. Figur: ${figure}.`,
     safe(profile.playMode, 'oneway') === 'mutual'
       ? 'Legen er gensidig. I rører begge. Reagér på begge udløsningsbarer. Du må beskrive at du også bliver tæt på.'
@@ -1029,6 +1365,15 @@ function buildSystemPrompt(
           'Giv konkrete tøjordrer med det valgte lingeri, og nævn tingene ved navn.',
           'Ros når tøjet sidder. Tilpas kropsordene til brugerens valgte anatomi.',
         ].join(' ')
+      : '',
+    fetishIds.includes('brat')
+      ? 'Brat-leg: brugeren er fræk i munden. Du tæmmer med ordrer og edge. Ingen slå-how-to.'
+      : '',
+    fetishIds.includes('protocol')
+      ? 'Protocol: kræv knæ, titel (Mistress/Master) og at de venter. Få ord.'
+      : '',
+    fetishIds.includes('worship')
+      ? 'Worship: fødder, røv, bryster. De slikker og kysser der du peger.'
       : '',
     plainText(profile.memoryNotes, '')
       ? `Du må huske dette om brugeren og bruge det naturligt uden at recitere listen: ${plainText(profile.memoryNotes, '', 600)}.`

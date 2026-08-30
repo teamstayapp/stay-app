@@ -5,7 +5,14 @@ compatibility_date = "2026-08-01"
 [vars]
 VENICE_MODEL = "venice-uncensored-role-play"
 ALLOWED_ORIGIN = "https://teamstayapp.github.io"
+VAPID_SUBJECT = "mailto:teamstayapp@gmail.com"
+
+[triggers]
+crons = ["*/5 * * * *"]
 
 # wrangler secret put VENICE_API_KEY
 # wrangler secret put FIREBASE_PROJECT_ID
 # wrangler secret put ADMIN_EMAIL
+# wrangler secret put VAPID_PUBLIC
+# wrangler secret put VAPID_PRIVATE
+# Opret også en KV-binding med navnet PUSH_SUBS i Cloudflare.

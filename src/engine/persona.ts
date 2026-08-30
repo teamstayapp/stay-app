@@ -32,7 +32,7 @@ function pack(profile: Profile) {
 
 export function opening(profile: Profile): string {
   const p = pack(profile)
-  const who = profile.figure === 'mistress' ? 'Mistress' : 'Master'
+  const who = profile.partnerName.trim() || (profile.figure === 'mistress' ? 'Mistress' : 'Master')
   const hot = profile.nsfw
   if (profile.role === 'domme') {
     if (hot) return p.hum

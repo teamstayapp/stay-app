@@ -8,6 +8,7 @@ const NOTIFICATION_STYLE_PREFIX = 'stay.notification-style.'
 const PANIC_DESTINATION_PREFIX = 'stay.panic-destination.'
 const MEMORY_PREFIX = 'stay.memory.'
 const AVAILABLE_PREFIX = 'stay.available.'
+const TASK_PLAN_PREFIX = 'stay.task-plan.'
 
 export type PanicDestinationMode = 'decoy' | 'weather' | 'calendar' | 'shortcut' | 'custom'
 
@@ -30,6 +31,22 @@ export interface DeviceSession {
 export interface DeviceMemory {
   notes: string
   last: string
+}
+
+export type TaskCategory = 'mix' | 'lingerie' | 'edge' | 'sissy' | 'protocol' | 'worship'
+
+export interface TaskPlan {
+  category: TaskCategory
+  intervalMin: number
+  count: number
+  mode: 'random' | 'fixed'
+}
+
+export const DEFAULT_TASK_PLAN: TaskPlan = {
+  category: 'mix',
+  intervalMin: 45,
+  count: 6,
+  mode: 'random',
 }
 
 interface StoredDeviceSession extends DeviceSession {
@@ -177,4 +194,28 @@ export function loadAvailability(userId: string): boolean {
 
 export function saveAvailability(userId: string, available: boolean): void {
   localStorage.setItem(AVAILABLE_PREFIX + userId, available ? '1' : '0')
+}
+
+export function loadTaskPlan(userId: string): TaskPlan {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TASK_PLAN_PREFIX + userId) || '') as Partial<TaskPlan>
+    const categories: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship']
+    return {
+      category: categories.includes(parsed.category as TaskCategory) ? parsed.category as TaskCategory : 'mix',
+      intervalMin: Math.max(5, Math.min(360, Number(parsed.intervalMin) || DEFAULT_TASK_PLAN.intervalMin)),
+      count: Math.max(1, Math.min(24, Number(parsed.count) || DEFAULT_TASK_PLAN.count)),
+      mode: parsed.mode === 'fixed' ? 'fixed' : 'random',
+    }
+  } catch {
+    return { ...DEFAULT_TASK_PLAN }
+  }
+}
+
+export function saveTaskPlan(userId: string, plan: TaskPlan): void {
+  localStorage.setItem(TASK_PLAN_PREFIX + userId, JSON.stringify({
+    category: plan.category,
+    intervalMin: Math.max(5, Math.min(360, plan.intervalMin)),
+    count: Math.max(1, Math.min(24, plan.count)),
+    mode: plan.mode,
+  }))
 }

@@ -1,6 +1,6 @@
 # Stay — prioriteret roadmap
 
-Opdateret 28. aug. 2026. Roadmapet skelner mellem det, der allerede virker,
+Opdateret 30. aug. 2026. Roadmapet skelner mellem det, der allerede virker,
 det der er delvist bygget, og det der skal være på plads før rigtige kunder.
 
 ## Allerede på plads
@@ -64,6 +64,8 @@ det der er delvist bygget, og det der skal være på plads før rigtige kunder.
 
 ### 1. To minutters onboarding
 
+**Status: leveret 30. aug. 2026.**
+
 - Vis først plan, beskeder tilbage i dag, billeder tilbage og NSFW-status.
 - Vælg kun scene, rolle og AI-partnerens stil før første svar.
 - Flyt krop, hud, anatomi, tøj, udstyr og øvrige detaljer til **Tilpas** efter
@@ -96,8 +98,15 @@ det der er delvist bygget, og det der skal være på plads før rigtige kunder.
 
 ### 4. Billeder med tydelig værdi
 
-- Brug et cover og 3–4 godkendte stillbilleder pr. scene som hurtig/fallback
-  oplevelse; behold generatoren som betalt funktion.
+**Fast partneridentitet og fire lokale fallbackbilleder er leveret 30. aug. 2026.**
+
+- Brugeren kan låse et godkendt partnerbillede som fast udseende og skabe en
+  ny positur med det samme referencebillede. Referencebaseret billedredigering
+  bevarer ansigt og kropsform bedre, men er ikke en biometrisk garanti.
+- Op til fire godkendte partnerbilleder kan vælges igen lokalt uden nyt
+  billedforbrug; behold generatoren som betalt funktion.
+- Partnernavnet vælges af brugeren og bruges ensartet i profil, chat og valgte
+  notifikationer.
 - Vis kvoten før generering og træk kun saldo ved succes.
 - Gem fejl-id, model, scene-id og en sanitiseret promptbeskrivelse til support.
   Gem ikke brugerens rå private eller seksuelle prompttekst.

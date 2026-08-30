@@ -20,14 +20,16 @@ service cloud.firestore {
     function validProfileCreate(userId) {
       return isOwner(userId)
         && request.resource.data.keys().hasAll([
-          'email', 'chatName', 'createdAt', 'lastSeen'
+          'email', 'chatName', 'partnerName', 'createdAt', 'lastSeen'
         ])
         && request.resource.data.keys().hasOnly([
-          'email', 'chatName', 'createdAt', 'lastSeen'
+          'email', 'chatName', 'partnerName', 'createdAt', 'lastSeen'
         ])
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.chatName is string
         && request.resource.data.chatName.size() <= 32
+        && request.resource.data.partnerName is string
+        && request.resource.data.partnerName.size() <= 32
         && request.resource.data.createdAt is timestamp
         && request.resource.data.lastSeen is timestamp;
     }
@@ -36,16 +38,18 @@ service cloud.firestore {
       return isOwner(userId)
         && request.resource.data.keys().hasAll(['email', 'lastSeen'])
         && request.resource.data.keys().hasOnly([
-          'email', 'chatName', 'createdAt', 'lastSeen'
+          'email', 'chatName', 'partnerName', 'createdAt', 'lastSeen'
         ])
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.get('chatName', '') is string
         && request.resource.data.get('chatName', '').size() <= 32
+        && request.resource.data.get('partnerName', '') is string
+        && request.resource.data.get('partnerName', '').size() <= 32
         && request.resource.data.get('createdAt', null)
           == resource.data.get('createdAt', null)
         && request.resource.data.lastSeen is timestamp
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['email', 'chatName', 'lastSeen']);
+          .hasOnly(['email', 'chatName', 'partnerName', 'lastSeen']);
     }
 
     function validFreeEntitlementCreate(userId) {

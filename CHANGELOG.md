@@ -2,6 +2,57 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 30. august 2026 — fast AI-partner, partnernavn og nye positurer
+
+- Brugeren kan vælge et partnernavn, som bruges på startsiden, i chatten, i
+  AI-prompten og i brugerens valgte notifikationer.
+- Et godt partnerbillede kan låses med **Brug som fast udseende**.
+- **Ny positur – samme partner** sender det låste referencebillede til Venices
+  private `qwen-edit-uncensored`-model, så ansigt, hår, krop og proportioner
+  bevares bedre end ved en ny tekst-til-billede-generation.
+- Op til fire faste billeder af partneren gemmes som hurtige, gratis genvalg på
+  den valgte enhed. Nye positurer bruger fortsat ét figurbillede fra kvoten.
+- Brugeren kan gå tilbage til originalen, vælge en tidligere positur, udskifte
+  det faste udseende eller bekræfte oprettelsen af en helt ny partner.
+- Privat session gemmer ikke reference eller faste positurer permanent. Ved
+  **Gem på denne enhed** ligger de i IndexedDB sammen med det lokale galleri.
+- Firestore-reglerne tillader nu det ufølsomme profilfelt `partnerName`.
+- Cloudflare Workeren har fået den autentificerede rute `POST /image/pose` med
+  den samme centrale plan- og billedkvotekontrol som almindelig generering.
+- Den enkle konto-/startside, den korte onboarding og alle tidligere funktioner,
+  ordlister og billedfiler er bevaret.
+
+## 30. august 2026 — enkel startside og kort onboarding
+
+- Efter login åbner Stay nu på en enkel konto-/startside i stedet for den lange
+  opsætning.
+- Startsiden viser aktiv plan, dagens resterende chatbeskeder, billeder,
+  billedanalyser, NSFW-status og eventuel udløbsdato.
+- Hurtig start samler chatnavn, scene, rolle, AI-partner, grundstil, gemning og
+  NSFW, så en chat kan startes uden at gennemgå alle indstillinger.
+- En lokalt gemt session kan fortsættes direkte fra startsiden.
+- Den hidtidige komplette opsætning er bevaret under **Tilpas partner og scene
+  mere** med krop, udseende, billeder, intensitet, udstyr, temaer, ordlister,
+  hukommelse, notifikationer og panikvalg.
+- Konto-, regler-, abonnements- og adminfunktioner er samlet som rolige genveje
+  nederst på startsiden.
+- Ændringen er kun i brugerfladen og kræver ingen ny Firebase-regel eller
+  Cloudflare Worker.
+
+## 30. august 2026 — Web Push, dagsopgaver og nye voksen-temaer
+
+- “Til rådighed” bruger nu rigtig Web Push via Cloudflare, VAPID, KV og Cron,
+  så beskeder kan komme efter appen er lukket.
+- Brugeren kan vælge opgavetype, interval, antal og tilfældig eller fast rytme.
+- Diskret eller detaljeret beskedtekst vælges lokalt på telefonen. Cloudflare
+  lagrer ikke den konkrete opgavetekst.
+- Chatten har fået hurtigknapper til Inspektion, Protocol og Ruined.
+- Kropskortet har fået fødder som trykzone forfra og bagfra.
+- Plus-kataloget har fået voksen-temaerne Brat og Protocol, og Worker-prompten
+  har særskilt, sikker styring for Brat, Protocol og Worship.
+- De eksisterende 18+-filtre, billeder, galleri, hukommelse, panikfunktion,
+  iPhone-lyd, kontogrænser og adminfunktioner er bevaret.
+
 ## 30. august 2026 — hukommelse, tilgængelighed og admin-foldelister
 
 - Tilføjet et lokalt hukommelsesfelt til brugerens ønsker samt en kort opsummering

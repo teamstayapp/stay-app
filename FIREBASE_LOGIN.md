@@ -74,6 +74,6 @@ Det opretter standardscenerne centralt.
 4. Log ind i Stay.
 5. Test **Glemt adgangskode?**.
 
-Login, chatnavn, planrettigheder og AI-forbrug virker derefter på tværs af
+Login, chatnavn, partnernavn, planrettigheder og AI-forbrug virker derefter på tværs af
 enheder. Selve private chats og figurvalg gemmes fortsat kun efter brugerens
 valgte privatlivstilstand.

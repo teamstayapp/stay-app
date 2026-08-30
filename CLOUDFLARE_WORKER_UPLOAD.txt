@@ -10,9 +10,19 @@ STAY — OPDATER CLOUDFLARE WORKER
 7. Kontrollér at svaret viser:
    "ok": true
    "venice": true
+   "webPush": true
+   "consistentPartnerPoses": true
 
 Du skal ikke indsætte Venice-nøglen i kodefilen. Den skal fortsat ligge som
 Cloudflare-secret med navnet VENICE_API_KEY.
+
+For at "Til rådighed" kan virke i baggrunden, skal Worker også have:
+- Secrets: VAPID_PUBLIC og VAPID_PRIVATE
+- Text: VAPID_SUBJECT = mailto:teamstayapp@gmail.com
+- KV-binding: PUSH_SUBS
+- Cron Trigger: */5 * * * *
+
+Se WEB_PUSH_OPSAETNING.md for den fulde trin-for-trin-vejledning.
 
 Efter deploy:
 - Admin → Prompts → Gendan standard → Udgiv til alle
@@ -25,4 +35,7 @@ Test:
 - Start en chat, tryk Rør krop og vælg en zone. AI'en skal reagere på zonen.
 - Hals/nakke må aldrig give instruktioner om tryk eller kvælning.
 - Test Tæt på og Jeg kommer med både Penis og Vulva.
+- Lås et partnerbillede og test "Ny positur – samme partner". Ansigt og krop
+  skal ligne referencen, og billedkvoten skal falde med ét efter succes.
 - Free skal stadig få et ikke-eksplicit svar fra begge knapper.
+- Slå Til rådighed til, luk Stay og kontrollér en testbesked efter det valgte interval.

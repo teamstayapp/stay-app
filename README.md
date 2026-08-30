@@ -6,6 +6,10 @@ og [IDEER.md](IDEER.md) for idéer til senere.
 
 18+ solo edge-PWA. Egen side — ikke App Store.
 
+Efter login åbner appen på en kort konto-/startside med plan, resterende
+AI-forbrug og hurtig start. Den komplette opsætning er stadig tilgængelig via
+**Tilpas partner og scene mere**.
+
 ```bash
 npm install
 npm run dev
@@ -54,6 +58,12 @@ AI-flowet og de faste sikkerhedsgrænser.
 Se [KLIMAKS_OG_FAVORIT.md](KLIMAKS_OG_FAVORIT.md) for **Tæt på**,
 **Jeg kommer**, brugerens anatomivalg og lokal billedfavorit.
 
+Se [PARTNER_IDENTITET.md](PARTNER_IDENTITET.md) for partnernavn, fast
+referencebillede, **Ny positur – samme partner** og de fire gratis genvalg.
+
+Se [WEB_PUSH_OPSAETNING.md](WEB_PUSH_OPSAETNING.md) for VAPID, Cloudflare KV,
+Cron Trigger og opgaver via “Til rådighed”, også når appen er lukket.
+
 ## Konto
 
 Login bruger Firebase Authentication. Plan, status, udløb, billedbonus,
@@ -88,6 +98,8 @@ Betaling: egen side, voksen-venlig processor / MobilePay — ikke App Store IAP.
 - Kropsberøring: validerede forfra/bagfra-zoner med en særskilt AI-hensigt
 - Klimaks: særskilte Tæt på/Jeg kommer-hensigter med servervalideret anatomi
 - Partnerfavorit: ét genereret billede kan genbruges lokalt uden nyt AI-kald
+- Partneridentitet: et referencebillede bruges til nye positurer via privat
+  billedredigering; op til fire godkendte billeder kan genvælges gratis
 - Nøgle kun på server
 
 ## Regler

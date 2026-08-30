@@ -8,6 +8,7 @@ export type BodyZoneId =
   | 'thigh'
   | 'hand'
   | 'ass'
+  | 'feet'
 
 export interface BodyZone {
   id: BodyZoneId
@@ -29,7 +30,9 @@ export const BODY_ZONES: BodyZone[] = [
   { id: 'thigh', view: 'front', label: 'Lår', x: 32, y: 52, w: 36, h: 20 },
   { id: 'neck', view: 'back', label: 'Nakke', x: 40, y: 10, w: 20, h: 6 },
   { id: 'ass', view: 'back', label: 'Røv', x: 36, y: 39, w: 28, h: 12 },
+  { id: 'feet', view: 'front', label: 'Fødder', x: 38, y: 88, w: 24, h: 10 },
   { id: 'thigh', view: 'back', label: 'Lår', x: 32, y: 53, w: 36, h: 20 },
+  { id: 'feet', view: 'back', label: 'Fødder', x: 38, y: 88, w: 24, h: 10 },
 ]
 
 export function bodyMapSrc(figure: 'master' | 'mistress', view: BodyView): string {
@@ -57,6 +60,7 @@ export function localTouchReply(
       thigh: 'Jeg lader din hånd hvile på låret og ser på dig.',
       hand: 'Mine fingre lukker om dine. Jeg holder dig et øjeblik.',
       ass: 'Jeg læner mig ind i din hånd, men tøjet bliver på.',
+      feet: 'Jeg lader din mund eller hånd være ved fødderne. Roligt.',
     }
     return soft[zone]
   }
@@ -77,6 +81,7 @@ export function localTouchReply(
     ass: analSelected
       ? 'Klem om røven. En finger langsomt, kun så langt vi har aftalt.'
       : 'Klem om røven. Du må røre — ikke analt videre i den her scene.',
+    feet: 'Kys vristene. Slik tæerne hvis jeg siger det. Tilbed.',
   }
   return direct[zone]
 }

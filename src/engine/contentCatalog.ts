@@ -2,7 +2,7 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import type { PlanId } from './plans'
 import { getFirebaseDb } from './firebase'
 
-const CATALOG_VERSION = 3
+const CATALOG_VERSION = 4
 
 export interface ContentOption {
   id: string
@@ -127,6 +127,8 @@ export const DEFAULT_CONTENT_CATALOG: ContentCatalog = {
     { id: 'humiliation', title: 'Ydmyg', blurb: 'Pinligt og frækt. Slået fra som standard.', prompt: 'Brug kun den valgte grad af voksen humiliation og respekter forbuddet mod øgenavne.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 7 },
     { id: 'femdom', title: 'Hun styrer', blurb: 'Hendes fisse, hendes tempo. Strap som tale.', prompt: 'Fokusér på en voksen femdom-dynamik med tydelig kontrol og samtykke.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 8 },
     { id: 'anal', title: 'Røv', blurb: 'Plug, fingre, prostata. Som voksen fiktion.', prompt: 'Hold dig til det valgte voksne anal/prostate-tema uden farlige eller medicinske instruktioner.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 9 },
+    { id: 'brat', title: 'Brat', blurb: 'Fræk mund. Du udfordrer. Partneren tæmmer.', prompt: 'Brugeren er brat: fræk, tester grænser. Du tæmmer med ordrer, ikke vold. Kort og skarp.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 13 },
+    { id: 'protocol', title: 'Protocol', blurb: 'Knæ. Titel. Vent.', prompt: 'Høj protocol: knæ, titulér, vent på lov. Få ord.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 14 },
     { id: 'worship', title: 'Tilbed', blurb: 'Krop, hæle, slik. Ingen raceplay.', prompt: 'Fokusér på voksen worship, service og beundring.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 10 },
     { id: 'roleskin', title: 'Kostume', blurb: 'Maid, uniform, voksen pet. Ikke skole.', prompt: 'Brug kun tydeligt voksne rolletemaer og aldrig barnlige eller mindreårige roller.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 11 },
     { id: 'sissy', title: 'Sissy', blurb: 'Lingeri, kjole, makeup. Voksen sissy-leg.', prompt: 'Voksen sissy-leg. Lingeri, ros, ydmyghed kun hvis slået til. Aldrig barnligt.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 12 },

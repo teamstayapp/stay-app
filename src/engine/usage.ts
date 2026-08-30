@@ -200,7 +200,7 @@ export async function ensureUserProfile(uid: string, email: string): Promise<voi
   if (snapshot.exists()) {
     await setDoc(reference, { email, lastSeen: serverTimestamp() }, { merge: true })
   } else {
-    await setDoc(reference, { email, chatName: '', createdAt: serverTimestamp(), lastSeen: serverTimestamp() })
+    await setDoc(reference, { email, chatName: '', partnerName: '', createdAt: serverTimestamp(), lastSeen: serverTimestamp() })
   }
   if (!entitlementSnapshot.exists()) {
     await setDoc(entitlementReference, {

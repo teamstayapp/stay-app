@@ -1,6 +1,6 @@
 # Stay — status
 
-Opdateres løbende. Sidst: 29. aug 2026.
+Opdateres løbende. Sidst: 30. aug 2026.
 
 Appnavn: **Stay**  
 Mail: teamstayapp@gmail.com  
@@ -12,6 +12,13 @@ Firma på kvittering: må hedde noget andet end Stay.
 ## Hvor vi er
 
 - [x] 18+ og regelside
+- [x] Enkel konto-/startside efter login med plan, kvoter, NSFW og udløb
+- [x] Kort hurtig start med de vigtigste scene- og partnervalg
+- [x] Hele den tidligere opsætning bevaret som **Tilpas alle valg**
+- [x] Direkte fortsættelse af seneste lokalt gemte scene fra startsiden
+- [x] Brugerens eget partnernavn i profil, chat og valgte notifikationer
+- [x] Fast partnerreference med **Ny positur – samme partner**
+- [x] Op til fire faste partnerbilleder som gratis lokalt fallback
 - [x] Firebase-login / opret med localStorage-fallback
 - [x] Login-e-mail huskes i feltet, og browserens sikre adgangskode-autofyld understøttes
 - [x] Admin-panel (PC): centrale Firestore-kunder, plan, saldo, udløb, pause, opsig og churn
@@ -83,7 +90,7 @@ Firma på kvittering: må hedde noget andet end Stay.
 - [x] Worker deployed + Venice-nøgle
 - [x] Frontend + Worker-kode til chat via `venice-uncensored-role-play`
 - [x] Worker deployed + testet med rigtig Venice-nøgle
-- [ ] Opdateret Worker med opgavehensigt, billedgenerering og vision deployet
+- [ ] Opdateret Worker med opgavehensigt, billedgenerering, ensartede positurer og vision deployet
 - [ ] Opdaterede Firestore-regler til forbrug og tilkøb udgivet
 - [ ] Ny Worker med serverhåndhævede forbrugsgrænser deployet
 - [ ] Ny Worker med planstyrede promptlag og udstyr deployet

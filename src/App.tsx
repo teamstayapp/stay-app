@@ -49,7 +49,7 @@ import {
 import { BLOCKED_REPLY, POLICY_SECTIONS, isBlocked } from './engine/policy'
 import { ADDONS, PLANS } from './engine/plans'
 import { currentAccount, logout, observeAccount, type Account } from './engine/auth'
-import { aiIsConfigured, analyzeImage, askAi, generatePartnerImage } from './engine/ai'
+import { aiIsConfigured, analyzeImage, askAi, generatePartnerImage, generatePartnerPose } from './engine/ai'
 import { AdminScreen, LoginScreen } from './screens/AuthScreens'
 import { isStandalone } from './pwa'
 import { availableScenes, DEFAULT_SCENES, observeScenes, openingPromptForPlan } from './engine/scenes'
@@ -60,7 +60,7 @@ import {
   type ContentCatalog,
 } from './engine/contentCatalog'
 import { PROFESSIONS } from './engine/professions'
-import { observeChatName, saveChatName } from './engine/userProfile'
+import { observeChatName, observePartnerName, saveChatName, savePartnerName } from './engine/userProfile'
 import {
   DEFAULT_USAGE_CONFIG,
   currentUsagePeriod,
@@ -85,14 +85,25 @@ import {
   loadNotificationStyle,
   loadPanicDestination,
   loadPrivacyMode,
+  loadTaskPlan,
   saveDeviceSession,
   saveAvailability,
   saveDeviceMemory,
   saveNotificationStyle,
   savePanicDestination,
   savePrivacyMode,
+  saveTaskPlan,
+  DEFAULT_TASK_PLAN,
+  type TaskCategory,
+  type TaskPlan,
   type PanicDestination,
 } from './engine/sessionStore'
+import {
+  hasStayPushSubscription,
+  subscribeStayPush,
+  unsubscribeStayPush,
+  updateStayPush,
+} from './engine/push'
 import {
   BODY_ZONES,
   bodyMapSrc,
@@ -134,34 +145,6 @@ function playStaySound(kind: 'moan' | 'come', existingContext?: AudioContext) {
   }
 }
 
-async function requestStayNotifications(): Promise<string> {
-  if (!('Notification' in window)) return 'Denne enhed understøtter ikke webnotifikationer.'
-  const permission = await Notification.requestPermission()
-  return permission === 'granted'
-    ? ''
-    : 'Notifikationer blev ikke tilladt. Slå dem til i enhedens indstillinger og prøv igen.'
-}
-
-async function sendStayTaskNotification(discreet: boolean, text: string): Promise<void> {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return
-  const title = discreet ? 'Stay' : 'Mistress'
-  const options: NotificationOptions = {
-    body: discreet ? 'Ny note. Åbn appen.' : text.slice(0, 100),
-    silent: discreet,
-    tag: 'stay-available-task',
-  }
-  try {
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.ready
-      await registration.showNotification(title, options)
-      return
-    }
-    new Notification(title, options)
-  } catch {
-    // Notifikationer er valgfrie og må aldrig blokere chatten.
-  }
-}
-
 function profileWithCatalog(profile: Profile, catalog: ContentCatalog): Profile {
   const selectedFetishes = catalog.fetishes.filter((item) => item.enabled && profile.fetishes.includes(item.id))
   const selectedEquipment = catalog.equipment.filter(
@@ -178,6 +161,7 @@ function profileWithCatalog(profile: Profile, catalog: ContentCatalog): Profile 
 
 const emptyProfile = (): Profile => ({
   chatName: '',
+  partnerName: '',
   privacyMode: 'private',
   notificationStyle: 'discreet',
   sceneId: 'soft-care',
@@ -229,6 +213,10 @@ const emptyProfile = (): Profile => ({
   lingeriePartner: [],
 })
 
+function partnerDisplayName(profile: Pick<Profile, 'partnerName' | 'figure'>): string {
+  return profile.partnerName.trim() || (profile.figure === 'mistress' ? 'Mistress' : 'Master')
+}
+
 export default function App() {
   const [phase, setPhase] = useState<Phase>('age')
   const [profile, setProfile] = useState<Profile>(emptyProfile)
@@ -242,7 +230,7 @@ export default function App() {
   const [running, setRunning] = useState(false)
   const [shopOpen, setShopOpen] = useState(false)
   const [account, setAccount] = useState<Account | null>(() => currentAccount())
-  const [returnPhase, setReturnPhase] = useState<Phase>('setup')
+  const [returnPhase, setReturnPhase] = useState<Phase>('home')
   const [decoyTaps, setDecoyTaps] = useState(0)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [rulesConfirmed, setRulesConfirmed] = useState(false)
@@ -262,6 +250,7 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(false)
   const [availableOn, setAvailableOn] = useState(false)
   const [availabilityNotice, setAvailabilityNotice] = useState('')
+  const [taskPlan, setTaskPlan] = useState<TaskPlan>(DEFAULT_TASK_PLAN)
   const [deviceSettingsUserId, setDeviceSettingsUserId] = useState('')
   const partnerPeakRef = useRef(false)
   const moanLockRef = useRef(false)
@@ -309,6 +298,7 @@ export default function App() {
           setFavoriteLook(null)
           setGallery([])
           setAvailableOn(false)
+          setTaskPlan(DEFAULT_TASK_PLAN)
           setDeviceSettingsUserId('')
           setProfile((current) => ({ ...current, partnerImageUrl: undefined }))
         }
@@ -330,6 +320,13 @@ export default function App() {
     if (!account) return
     return observeChatName(account.id, (chatName) => {
       setProfile((current) => current.chatName === chatName ? current : { ...current, chatName })
+    })
+  }, [account])
+
+  useEffect(() => {
+    if (!account) return
+    return observePartnerName(account.id, (partnerName) => {
+      setProfile((current) => current.partnerName === partnerName ? current : { ...current, partnerName })
     })
   }, [account])
 
@@ -360,6 +357,10 @@ export default function App() {
 
   useEffect(() => {
     if (!account) return
+    if (loadPrivacyMode(account.id) !== 'device') {
+      const timer = window.setTimeout(() => setFavoriteLook(null), 0)
+      return () => window.clearTimeout(timer)
+    }
     let active = true
     void loadFavoriteLook(account.id).then((look) => {
       if (!active) return
@@ -367,7 +368,7 @@ export default function App() {
       setProfile((current) => ({
         ...current,
         partnerImageUrl: look?.imageUrl,
-        ...(look ? { figure: look.figure } : {}),
+        ...(look ? { figure: look.figure, partnerName: look.partnerName || current.partnerName } : {}),
       }))
     })
     return () => { active = false }
@@ -387,14 +388,17 @@ export default function App() {
     const privacyMode = loadPrivacyMode(account.id)
     const notificationStyle = loadNotificationStyle(account.id)
     const savedPanicDestination = loadPanicDestination(account.id)
+    const savedTaskPlan = loadTaskPlan(account.id)
     const memory = privacyMode === 'device' ? loadDeviceMemory(account.id) : { notes: '', last: '' }
-    void hasDeviceSession(account.id).then((available) => {
+    void Promise.all([hasDeviceSession(account.id), hasStayPushSubscription()]).then(([available, pushActive]) => {
       setSavedSessionAvailable(available)
       setAvailableOn(
         loadAvailability(account.id)
+        && pushActive
         && 'Notification' in window
         && Notification.permission === 'granted',
       )
+      setTaskPlan(savedTaskPlan)
       setProfile((current) => ({
         ...current,
         privacyMode,
@@ -418,21 +422,20 @@ export default function App() {
   }, [account, availableOn, deviceSettingsUserId])
 
   useEffect(() => {
-    if (!availableOn) return
-    const tasks = [
-      'Åbn chatten og bed om en ny opgave.',
-      'Tag en rolig pause, og fortæl chatten hvordan du har det.',
-      'Gør dit valgte udstyr klar, og fortsæt først når du er tryg.',
-      'Hænderne væk et øjeblik. Åbn chatten for næste besked.',
-      'Åbn Stay. Din AI-partner har en ny opgave til dig.',
-    ]
-    const timer = window.setInterval(() => {
-      const text = tasks[Math.floor(Math.random() * tasks.length)]
-      void sendStayTaskNotification(profile.notificationStyle !== 'explicit', text)
-      setAvailabilityNotice(text)
-    }, 45 * 60 * 1000)
-    return () => window.clearInterval(timer)
-  }, [availableOn, profile.notificationStyle])
+    if (!account || deviceSettingsUserId !== account.id) return
+    saveTaskPlan(account.id, taskPlan)
+  }, [account, deviceSettingsUserId, taskPlan])
+
+  useEffect(() => {
+    if (!availableOn || !account || deviceSettingsUserId !== account.id) return
+    void updateStayPush({
+      explicit: profile.notificationStyle === 'explicit',
+      partnerTitle: profile.partnerName.trim() || (profile.figure === 'mistress' ? 'Mistress' : 'Master'),
+      plan: taskPlan,
+    }).then((error) => {
+      if (error) setAvailabilityNotice(error)
+    })
+  }, [account, availableOn, deviceSettingsUserId, profile.figure, profile.notificationStyle, profile.partnerName, taskPlan])
 
   useEffect(() => {
     if (!account || profile.privacyMode !== 'device' || (phase !== 'session' && phase !== 'aftercare')) return
@@ -520,9 +523,18 @@ export default function App() {
       void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
     } else {
       const sessionImages = gallery
-      void loadPartnerGallery(account.id).then((storedImages) => {
+      void Promise.all([loadPartnerGallery(account.id), loadFavoriteLook(account.id)]).then(([storedImages, look]) => {
         const imageUrls = [...new Set([...sessionImages, ...storedImages])].slice(0, 12)
         setGallery(imageUrls)
+        if (look) {
+          setFavoriteLook(look)
+          setProfile((current) => ({
+            ...current,
+            figure: look.figure,
+            partnerName: look.partnerName || current.partnerName,
+            partnerImageUrl: current.partnerImageUrl || look.imageUrl,
+          }))
+        }
         return savePartnerGallery(account.id, imageUrls)
       }).catch(() => setImageNotice('Galleriet kunne ikke gemmes på denne enhed.'))
     }
@@ -610,6 +622,7 @@ export default function App() {
     if (scene) p.sceneId = scene.id
     setProfile(p)
     if (account) void saveChatName(account.id, p.chatName).catch(() => undefined)
+    if (account) void savePartnerName(account.id, p.partnerName).catch(() => undefined)
     if (account && p.privacyMode === 'private') {
       void clearDeviceSession(account.id).then(() => setSavedSessionAvailable(false))
     }
@@ -689,7 +702,7 @@ export default function App() {
     }
   }
 
-  async function createPartnerImage() {
+  async function createPartnerImage(replaceLockedLook = false) {
     if (imageBusy) return
     if (!aiIsConfigured()) {
       setImageNotice('Billed-AI er ikke konfigureret endnu.')
@@ -702,12 +715,23 @@ export default function App() {
     const controller = new AbortController()
     setImageBusy(true)
     setImageNotice('AI-partneren bliver skabt…')
+    let identityClearFailed = false
     try {
       const imageUrl = await generatePartnerImage({
         profile: profileWithCatalog(profile, contentCatalog),
         signal: controller.signal,
       })
       setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
+      if (replaceLockedLook) {
+        setFavoriteLook(null)
+        if (account && profile.privacyMode === 'device') {
+          try {
+            await clearFavoriteLook(account.id)
+          } catch {
+            identityClearFailed = true
+          }
+        }
+      }
       const imageUrls = [imageUrl, ...gallery.filter((item) => item !== imageUrl)].slice(0, 12)
       setGallery(imageUrls)
       let gallerySaved = true
@@ -720,11 +744,68 @@ export default function App() {
       }
       setImageNotice(profile.privacyMode === 'device'
         ? gallerySaved
-          ? 'Billedet er oprettet og gemmes kun på denne enhed.'
+          ? replaceLockedLook
+            ? identityClearFailed
+              ? 'En ny partner er oprettet, men det tidligere faste udseende kunne ikke slettes fra enheden.'
+              : 'En ny partner er oprettet. Vælg “Brug som fast udseende”, hvis den skal låses.'
+            : 'Billedet er oprettet og gemmes kun på denne enhed.'
           : 'Billedet er oprettet, men galleriet kunne ikke gemmes på denne enhed.'
         : 'Billedet er oprettet og slettes, når den private session forlades.')
     } catch (error) {
       setImageNotice(error instanceof Error ? error.message : 'Billedet kunne ikke oprettes.')
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
+  async function createPartnerPose() {
+    if (imageBusy || !favoriteLook) return
+    if (!aiIsConfigured()) {
+      setImageNotice('Billed-AI er ikke konfigureret endnu.')
+      return
+    }
+    if (imageGenerationsLeft < 1) {
+      setImageNotice('Du har ingen figurbilleder tilbage på planen.')
+      return
+    }
+    const controller = new AbortController()
+    setImageBusy(true)
+    setImageNotice(`Laver en ny positur med samme ${partnerDisplayName(profile)}…`)
+    try {
+      const imageUrl = await generatePartnerPose({
+        profile: profileWithCatalog(profile, contentCatalog),
+        referenceImageUrl: favoriteLook.imageUrl,
+        signal: controller.signal,
+      })
+      const imageUrls = [imageUrl, ...gallery.filter((item) => item !== imageUrl)].slice(0, 12)
+      const poseImages = [
+        favoriteLook.imageUrl,
+        ...[...new Set([...favoriteLook.poseImages, imageUrl])]
+          .filter((item) => item !== favoriteLook.imageUrl)
+          .slice(-3),
+      ]
+      const updatedLook: FavoriteLook = {
+        ...favoriteLook,
+        partnerName: profile.partnerName.trim() || favoriteLook.partnerName,
+        poseImages,
+        savedAt: new Date().toISOString(),
+      }
+      setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
+      setFavoriteLook(updatedLook)
+      setGallery(imageUrls)
+      if (account && profile.privacyMode === 'device') {
+        await Promise.all([
+          saveFavoriteLook(updatedLook),
+          savePartnerGallery(account.id, imageUrls),
+        ])
+      }
+      setImageNotice(
+        profile.privacyMode === 'device'
+          ? 'Ny positur er lavet med det faste partnerbillede som reference og gemt på denne enhed.'
+          : 'Ny positur er lavet med det faste partnerbillede som reference og slettes med den private session.',
+      )
+    } catch (error) {
+      setImageNotice(error instanceof Error ? error.message : 'Den nye positur kunne ikke oprettes.')
     } finally {
       setImageBusy(false)
     }
@@ -737,14 +818,18 @@ export default function App() {
       userId: account.id,
       imageUrl: profile.partnerImageUrl,
       figure: profile.figure,
+      partnerName: partnerDisplayName(profile),
+      poseImages: [profile.partnerImageUrl],
       savedAt: new Date().toISOString(),
     }
     try {
-      await saveFavoriteLook(look)
+      if (profile.privacyMode === 'device') await saveFavoriteLook(look)
       setFavoriteLook(look)
-      setImageNotice('Favoritten er gemt på denne enhed. Det bruger ikke et nyt figurbillede.')
+      setImageNotice(profile.privacyMode === 'device'
+        ? 'Partnerens udseende er låst på denne enhed. Nye positurer bruger billedet som reference.'
+        : 'Udseendet er låst i denne private session og slettes, når sessionen forlades.')
     } catch {
-      setImageNotice('Favoritten kunne ikke gemmes på denne enhed.')
+      setImageNotice('Det faste udseende kunne ikke gemmes.')
     } finally {
       setFavoriteBusy(false)
     }
@@ -755,6 +840,7 @@ export default function App() {
     setProfile((current) => ({
       ...current,
       figure: favoriteLook.figure,
+      partnerName: favoriteLook.partnerName || current.partnerName,
       partnerImageUrl: favoriteLook.imageUrl,
     }))
     setImageNotice('Din gemte favorit bruges igen uden billedforbrug.')
@@ -764,11 +850,13 @@ export default function App() {
     if (!account || favoriteBusy) return
     setFavoriteBusy(true)
     try {
-      await clearFavoriteLook(account.id)
+      if (profile.privacyMode === 'device') await clearFavoriteLook(account.id)
       setFavoriteLook(null)
-      setImageNotice('Favoritten er slettet fra denne enhed. Det viste billede bliver stående i denne session.')
+      setImageNotice(profile.privacyMode === 'device'
+        ? 'Det faste udseende er slettet fra denne enhed. Det viste billede bliver stående i sessionen.'
+        : 'Det faste udseende er fjernet fra den private session.')
     } catch {
-      setImageNotice('Favoritten kunne ikke slettes fra denne enhed.')
+      setImageNotice('Det faste udseende kunne ikke fjernes.')
     } finally {
       setFavoriteBusy(false)
     }
@@ -1019,6 +1107,27 @@ export default function App() {
     )
   }
 
+  async function requestInspection() {
+    const worn = [...(profile.lingerieUser || []), ...profile.equipment].slice(0, 8).join(', ') || 'det du har på'
+    await sendAiRequest(
+      `Inspicer mig. Jeg har på: ${worn}. Sig hvad der skal rettes og hvad der må blive.`,
+      'task',
+      'Inspektion',
+    )
+  }
+
+  async function requestProtocol() {
+    await sendAiRequest('Protocol. Jeg knæler og venter. Giv titel og næste ordre.', 'task', 'Protocol')
+  }
+
+  async function sendRuinedMoment() {
+    if (aiThinking) return
+    setNear('close')
+    setRunning(false)
+    setUserHeat(70)
+    await sendAiRequest('Ruined. Jeg må ikke komme færdigt. Tag det fra mig på kanten.', 'close', 'Ruined')
+  }
+
   async function touchBodyZone(zone: BodyZone) {
     if (aiThinking) return
     const visible = touchUserLine(zone)
@@ -1117,7 +1226,7 @@ export default function App() {
         onIn={(acc) => {
           setAccount(acc)
           setEntitlementLoaded(false)
-          setPhase('setup')
+          setPhase('home')
         }}
         onAdmin={() => {
           setAccount(currentAccount())
@@ -1133,7 +1242,7 @@ export default function App() {
         onBack={() => {
           const acc = currentAccount()
           setAccount(acc)
-          setPhase(acc?.role === 'admin' ? 'setup' : 'login')
+          setPhase(acc ? 'home' : 'login')
         }}
       />
     )
@@ -1209,7 +1318,7 @@ export default function App() {
           setDecoyTaps(n)
           if (n >= 5) {
             setDecoyTaps(0)
-            setPhase(returnPhase === 'decoy' ? 'setup' : returnPhase)
+            setPhase(returnPhase === 'decoy' ? 'home' : returnPhase)
           }
         }}>
           Notes
@@ -1337,9 +1446,243 @@ export default function App() {
             </button>
           </div>
         ))}
-        <button className="ghost" style={{ marginTop: '1rem' }} onClick={() => setPhase('setup')}>
+        <button className="ghost" style={{ marginTop: '1rem' }} onClick={() => setPhase('home')}>
           Tilbage
         </button>
+      </main>
+    )
+  }
+
+  if (phase === 'home') {
+    const scenes = availableScenes(sceneCatalog, profile, contentCatalog)
+    const selectedScene = scenes.find((scene) => scene.id === profile.sceneId) ?? scenes[0]
+    const currentPlan = PLANS.find((item) => item.id === entitlement.plan) ?? PLANS[0]
+    const partnerTitle = partnerDisplayName(profile)
+    const personalityTitle = profile.personality === 'warm'
+      ? 'Blid'
+      : profile.personality === 'cold'
+        ? 'Kold'
+        : profile.personality === 'tease'
+          ? 'Drilsk'
+          : 'Dominerende'
+    return (
+      <main className="shell home-page">
+        <header className="home-header">
+          <div>
+            <p className="kicker">Min Stay</p>
+            <h1>{profile.chatName.trim() ? `Hej ${profile.chatName.trim()}` : 'Klar når du er'}</h1>
+            <p className="lede">Start hurtigt med dine vigtigste valg. Resten kan tilpasses, når du har lyst.</p>
+          </div>
+          <button type="button" className="panic-home" onClick={panic}>Noter</button>
+        </header>
+
+        <section className="account-overview" aria-labelledby="account-overview-title">
+          <div className="account-overview-head">
+            <div>
+              <span className="status-dot" />
+              <span id="account-overview-title">Konto aktiv</span>
+            </div>
+            <button type="button" onClick={() => setPhase('pay')}>{currentPlan.title}</button>
+          </div>
+          <div className="account-metrics">
+            <div><strong>{chatMessagesLeft}</strong><span>beskeder i dag</span></div>
+            <div><strong>{imageGenerationsLeft}</strong><span>billeder tilbage</span></div>
+            <div><strong>{imageAnalysesLeft}</strong><span>analyser tilbage</span></div>
+            <div><strong>{currentPlan.nsfw && profile.nsfw ? 'Til' : 'Fra'}</strong><span>NSFW</span></div>
+          </div>
+          {entitlement.expiresAt && (
+            <p className="account-expiry">Planen udløber {new Date(entitlement.expiresAt).toLocaleDateString('da-DK')}.</p>
+          )}
+        </section>
+
+        {savedSessionAvailable && profile.privacyMode === 'device' && (
+          <section className="resume-card">
+            <div>
+              <strong>Fortsæt hvor du slap</strong>
+              <span>Din seneste lokalt gemte scene er klar.</span>
+            </div>
+            <button type="button" className="primary" onClick={() => void resumeSavedSession()}>Fortsæt chat</button>
+          </section>
+        )}
+
+        <section className="quick-start" aria-labelledby="quick-start-title">
+          <div className="quick-start-heading">
+            <div>
+              <p className="kicker">Hurtig start</p>
+              <h2 id="quick-start-title">Vælg kun det vigtigste</h2>
+            </div>
+            {profile.partnerImageUrl ? (
+              <img src={profile.partnerImageUrl} alt={`Din AI-partner ${partnerTitle}`} />
+            ) : (
+              <span className="quick-partner-placeholder" aria-hidden="true">{partnerTitle.slice(0, 1)}</span>
+            )}
+          </div>
+
+          <label className="field home-chat-name">
+            <span>Dit chatnavn</span>
+            <input
+              value={profile.chatName}
+              maxLength={32}
+              autoComplete="nickname"
+              placeholder="Hvad skal din AI-partner kalde dig?"
+              onChange={(event) => setProfile({ ...profile, chatName: event.target.value })}
+              onBlur={() => {
+                if (account) void saveChatName(account.id, profile.chatName).catch(() => undefined)
+              }}
+            />
+          </label>
+
+          <div className="quick-choice">
+            <div className="quick-choice-label"><strong>Scene</strong><span>{selectedScene?.title}</span></div>
+            <div className="quick-scroll" role="group" aria-label="Vælg scene">
+              {scenes.map((scene) => (
+                <button
+                  key={scene.id}
+                  type="button"
+                  className={selectedScene?.id === scene.id ? 'quick-option on' : 'quick-option'}
+                  onClick={() => setProfile({ ...profile, sceneId: scene.id })}
+                >
+                  <strong>{scene.title}</strong>
+                  <span>{scene.blurb}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="quick-choice compact">
+            <div className="quick-choice-label"><strong>Din rolle</strong></div>
+            <div className="row">
+              {(['slave', 'domme'] as Role[]).map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  className={profile.role === role ? 'chip on' : 'chip'}
+                  onClick={() => setProfile({ ...profile, role })}
+                >
+                  {role === 'domme' ? 'Jeg styrer' : 'Jeg adlyder'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="quick-choice compact">
+            <div className="quick-choice-label"><strong>AI-partner</strong><span>{partnerTitle}</span></div>
+            <div className="row">
+              {(['mistress', 'master'] as Figure[]).map((figure) => (
+                <button
+                  key={figure}
+                  type="button"
+                  className={profile.figure === figure ? 'chip on' : 'chip'}
+                  onClick={() => setProfile({ ...profile, figure })}
+                >
+                  {figure === 'mistress' ? 'Mistress' : 'Master'}
+                </button>
+              ))}
+            </div>
+            <label className="field inline-partner-name">
+              <span>Partnerens navn</span>
+              <input
+                value={profile.partnerName}
+                maxLength={32}
+                autoComplete="off"
+                placeholder={profile.figure === 'mistress' ? 'Fx Freja' : 'Fx Alexander'}
+                onChange={(event) => setProfile({ ...profile, partnerName: event.target.value })}
+                onBlur={() => {
+                  if (account) void savePartnerName(account.id, profile.partnerName).catch(() => undefined)
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="quick-choice compact">
+            <div className="quick-choice-label"><strong>Grundstil</strong><span>{personalityTitle}</span></div>
+            <div className="row">
+              {(['warm', 'cold', 'tease', 'strict'] as Personality[]).map((personality) => (
+                <button
+                  key={personality}
+                  type="button"
+                  className={profile.personality === personality ? 'chip on' : 'chip'}
+                  onClick={() => setProfile({ ...profile, personality })}
+                >
+                  {personality === 'warm' ? 'Blid' : personality === 'cold' ? 'Kold' : personality === 'tease' ? 'Drilsk' : 'Dominerende'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="quick-choice compact">
+            <div className="quick-choice-label">
+              <strong>Gemning</strong>
+              <span>{profile.privacyMode === 'private' ? 'Privat session' : 'Denne enhed'}</span>
+            </div>
+            <div className="row">
+              <button
+                type="button"
+                className={profile.privacyMode === 'private' ? 'chip on' : 'chip'}
+                onClick={() => choosePrivacyMode('private')}
+              >
+                Privat
+              </button>
+              <button
+                type="button"
+                className={profile.privacyMode === 'device' ? 'chip on' : 'chip'}
+                onClick={() => choosePrivacyMode('device')}
+              >
+                Gem på enheden
+              </button>
+            </div>
+          </div>
+
+          <div className="quick-choice compact nsfw-quick-choice">
+            <div className="quick-choice-label">
+              <strong>NSFW</strong>
+              <span>{currentPlan.nsfw ? (profile.nsfw ? 'Fræk er slået til' : 'Tøjet er på') : 'Kræver Solo eller Plus'}</span>
+            </div>
+            <button
+              type="button"
+              className={currentPlan.nsfw && profile.nsfw ? 'switch-button on' : 'switch-button'}
+              disabled={!currentPlan.nsfw}
+              aria-pressed={currentPlan.nsfw && profile.nsfw}
+              onClick={() => currentPlan.nsfw && setProfile({
+                ...profile,
+                nsfw: !profile.nsfw,
+                look: !profile.nsfw ? 'nsfw' : 'clothed',
+              })}
+            >
+              <span />
+              {currentPlan.nsfw && profile.nsfw ? 'Til' : 'Fra'}
+            </button>
+          </div>
+
+          <div className="quick-summary">
+            <span>{selectedScene?.title || 'Scene'}</span>
+            <span>{partnerTitle}</span>
+            <span>{personalityTitle}</span>
+            <span>{profile.privacyMode === 'private' ? 'Privat' : 'Lokal gemning'}</span>
+          </div>
+
+          <button type="button" className="primary quick-start-button" onClick={startSession}>Start chat</button>
+          <button type="button" className="ghost customize-button" onClick={() => setPhase('setup')}>
+            Tilpas partner og scene mere
+          </button>
+          <p className="quick-note">Krop, udseende, billede, intensitet, udstyr, temaer, ordlister, notifikationer og panikvalg ligger under Tilpas.</p>
+        </section>
+
+        <nav className="home-footer-actions" aria-label="Konto og indstillinger">
+          <button type="button" onClick={() => setPhase('pay')}>Abonnement</button>
+          <button type="button" onClick={() => openRules('home')}>Regler</button>
+          {account?.role === 'admin' && <button type="button" onClick={() => setPhase('admin')}>Admin</button>}
+          <button
+            type="button"
+            onClick={() => {
+              logout()
+              setAccount(null)
+              setPhase('login')
+            }}
+          >
+            Log ud
+          </button>
+        </nav>
       </main>
     )
   }
@@ -1350,8 +1693,11 @@ export default function App() {
     const currentPlan = PLANS.find((item) => item.id === entitlement.plan) ?? PLANS[0]
     return (
       <main className="shell">
-        <p className="kicker">Opsætning {account ? `· ${account.email}` : ''}</p>
+        <p className="kicker">Tilpas partner</p>
         <div className="row">
+          <button className="ghost" onClick={() => setPhase('home')}>
+            Startside
+          </button>
           <button className="ghost" onClick={() => openRules('setup')}>
             Regler
           </button>
@@ -1374,7 +1720,10 @@ export default function App() {
             Log ud
           </button>
         </div>
-        <h1>Hvad har du lyst til?</h1>
+        <h1>Tilpas alle valg</h1>
+        <p className="lede">
+          Her finder du hele opsætningen. Dine valg bruges næste gang, du starter eller fortsætter en chat.
+        </p>
 
         <label className="field chat-name-field">
           Dit chatnavn
@@ -1470,6 +1819,84 @@ export default function App() {
           )}
           <p className="privacy-note">Valget slås aldrig til automatisk. Du godkender også hver påmindelse, før den planlægges.</p>
         </section>
+
+        <details className="setup-fold task-plan-settings">
+          <summary>
+            <span className="setup-fold-title">
+              <strong>Opgaver i løbet af dagen</strong>
+              <small>Vælg type, rytme og antal beskeder</small>
+            </span>
+            <span className="setup-fold-count">{taskPlan.count} stk.</span>
+          </summary>
+          <div className="setup-fold-content task-plan-grid">
+            <label className="field">
+              <span>Type opgave</span>
+              <select
+                value={taskPlan.category}
+                onChange={(event) => setTaskPlan((current) => ({
+                  ...current,
+                  category: event.target.value as TaskCategory,
+                }))}
+              >
+                <option value="mix">Blandet</option>
+                <option value="lingerie">Lingeri</option>
+                <option value="edge">Edge</option>
+                <option value="sissy">Sissy</option>
+                <option value="protocol">Protocol</option>
+                <option value="worship">Worship</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Interval i minutter</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={5}
+                max={360}
+                value={taskPlan.intervalMin}
+                onChange={(event) => setTaskPlan((current) => ({
+                  ...current,
+                  intervalMin: Math.max(5, Math.min(360, Number(event.target.value) || 5)),
+                }))}
+              />
+            </label>
+            <label className="field">
+              <span>Antal beskeder</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={24}
+                value={taskPlan.count}
+                onChange={(event) => setTaskPlan((current) => ({
+                  ...current,
+                  count: Math.max(1, Math.min(24, Number(event.target.value) || 1)),
+                }))}
+              />
+            </label>
+            <div className="notification-choice task-mode" role="group" aria-label="Tidspunkt for opgaver">
+              <label className={taskPlan.mode === 'random' ? 'privacy-option on' : 'privacy-option'}>
+                <input
+                  type="radio"
+                  name="task-mode"
+                  checked={taskPlan.mode === 'random'}
+                  onChange={() => setTaskPlan((current) => ({ ...current, mode: 'random' }))}
+                />
+                <span><strong>Tilfældigt</strong><small>Varierer lidt omkring intervallet.</small></span>
+              </label>
+              <label className={taskPlan.mode === 'fixed' ? 'privacy-option on' : 'privacy-option'}>
+                <input
+                  type="radio"
+                  name="task-mode"
+                  checked={taskPlan.mode === 'fixed'}
+                  onChange={() => setTaskPlan((current) => ({ ...current, mode: 'fixed' }))}
+                />
+                <span><strong>Fast interval</strong><small>Sendes med den valgte afstand.</small></span>
+              </label>
+            </div>
+            <p className="privacy-note">Opgaverne sendes først, når du selv slår “Til rådighed” til i chatten.</p>
+          </div>
+        </details>
 
         <details className="setup-fold panic-settings">
           <summary>
@@ -1672,6 +2099,20 @@ export default function App() {
             </button>
           ))}
         </div>
+        <label className="field partner-name-field">
+          Partnerens navn
+          <input
+            value={profile.partnerName}
+            maxLength={32}
+            autoComplete="off"
+            placeholder={profile.figure === 'mistress' ? 'Fx Freja' : 'Fx Alexander'}
+            onChange={(event) => setProfile({ ...profile, partnerName: event.target.value })}
+            onBlur={() => {
+              if (account) void savePartnerName(account.id, profile.partnerName).catch(() => undefined)
+            }}
+          />
+          <span>Navnet bruges i chatten, på partnerkortet og i valgte notifikationer.</span>
+        </label>
 
         <h2>Fræk</h2>
         <button
@@ -1869,7 +2310,7 @@ export default function App() {
             {profile.partnerImageUrl ? (
               <img
                 src={profile.partnerImageUrl}
-                alt={`Genereret billede af ${profile.figure === 'mistress' ? 'Mistress' : 'Master'}`}
+                alt={`Genereret billede af ${partnerDisplayName(profile)}`}
               />
             ) : (
               <span>{profile.figure === 'mistress' ? 'M' : 'M'}</span>
@@ -1877,14 +2318,22 @@ export default function App() {
           </div>
           <div>
             <h2>AI-partnerens billede</h2>
-            <p className="hint">Billedet laves ud fra scene, stil, krop og de øvrige valg ovenfor.</p>
+            <p className="hint">
+              Lås først et godt billede. Derefter bruger “Ny positur” det som reference, så ansigt og krop bevares bedre.
+            </p>
             <button
               type="button"
               className="primary"
               disabled={imageBusy || imageGenerationsLeft < 1}
-              onClick={() => void createPartnerImage()}
+              onClick={() => void (favoriteLook ? createPartnerPose() : createPartnerImage())}
             >
-              {imageBusy ? 'Skaber billede…' : profile.partnerImageUrl ? 'Lav et nyt billede' : 'Skab AI-partner'}
+              {imageBusy
+                ? 'Skaber billede…'
+                : favoriteLook
+                  ? `Ny positur – samme ${partnerDisplayName(profile)}`
+                  : profile.partnerImageUrl
+                    ? 'Lav et nyt billede'
+                    : `Skab ${partnerDisplayName(profile)}`}
             </button>
             <div className="row look-actions">
               <button
@@ -1896,19 +2345,33 @@ export default function App() {
                 {favoriteBusy
                   ? 'Gemmer…'
                   : profile.partnerImageUrl === favoriteLook?.imageUrl
-                    ? 'Favorit gemt'
+                    ? 'Fast udseende gemt'
                     : favoriteLook
-                      ? 'Erstat favorit'
-                      : 'Gem som favorit'}
+                      ? 'Brug som nyt fast udseende'
+                      : 'Brug som fast udseende'}
               </button>
               {favoriteLook && profile.partnerImageUrl !== favoriteLook.imageUrl && (
                 <button type="button" className="ghost" disabled={favoriteBusy} onClick={useFavoriteLook}>
-                  Brug favorit
+                  Brug originalen
+                </button>
+              )}
+              {favoriteLook && (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={imageBusy || imageGenerationsLeft < 1}
+                  onClick={() => {
+                    if (window.confirm(`Vil du lave en helt ny partner i stedet for ${partnerDisplayName(profile)}?`)) {
+                      void createPartnerImage(true)
+                    }
+                  }}
+                >
+                  Lav helt ny partner
                 </button>
               )}
               {favoriteLook && (
                 <button type="button" className="ghost" disabled={favoriteBusy} onClick={() => void dropFavoriteLook()}>
-                  Slet favorit
+                  Fjern fast udseende
                 </button>
               )}
               <button
@@ -1921,11 +2384,50 @@ export default function App() {
               </button>
             </div>
             <small>{imageGenerationsLeft} figurbilleder tilbage</small>
-            <p className="hint">Favoritten gemmes kun på denne enhed og bruger ikke et nyt billede.</p>
+            <p className="hint">
+              Nye positurer bruger ét figurbillede. Genvalg af et fast billede er gratis.
+            </p>
           </div>
         </section>
+        {favoriteLook && (
+          <section className="fixed-partner-gallery" aria-labelledby="fixed-partner-gallery-title">
+            <div>
+              <h2 id="fixed-partner-gallery-title">Faste billeder af {partnerDisplayName(profile)}</h2>
+              <span>{favoriteLook.poseImages.length} af 4</span>
+            </div>
+            <p className="hint">Tryk på et billede for at bruge det igen uden billedforbrug.</p>
+            <div className="partner-gallery fixed" role="list" aria-label="Faste partnerbilleder">
+              {favoriteLook.poseImages.map((imageUrl, index) => (
+                <button
+                  key={`fixed-${imageUrl.slice(-32)}-${index}`}
+                  type="button"
+                  role="listitem"
+                  className={profile.partnerImageUrl === imageUrl ? 'on' : ''}
+                  onClick={() => {
+                    setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
+                    setImageNotice('Det faste billede er valgt uden nyt billedforbrug.')
+                  }}
+                >
+                  <img src={imageUrl} alt={`${partnerDisplayName(profile)} – fast billede ${index + 1}`} />
+                </button>
+              ))}
+              {Array.from({ length: Math.max(0, 4 - favoriteLook.poseImages.length) }, (_, index) => (
+                <button
+                  key={`empty-pose-${index}`}
+                  type="button"
+                  className="empty-pose"
+                  disabled={imageBusy || imageGenerationsLeft < 1}
+                  onClick={() => void createPartnerPose()}
+                >
+                  <span>+</span>
+                  <small>Ny positur</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
         {gallery.length > 0 && (
-          <div className="partner-gallery" role="list" aria-label="Tidligere partnerbilleder på denne enhed">
+          <div className="partner-gallery all-images" role="list" aria-label="Tidligere partnerbilleder på denne enhed">
             {gallery.map((imageUrl, index) => (
               <button
                 key={`${imageUrl.slice(-32)}-${index}`}
@@ -2238,20 +2740,21 @@ export default function App() {
             dropMedia()
             if (profile.privacyMode === 'private') {
               setGallery([])
+              setFavoriteLook(null)
               setProfile((current) => ({ ...current, partnerImageUrl: undefined }))
             }
-            setPhase('setup')
+            setPhase('home')
             setLines([])
           }}
         >
-          Tilbage til opsætning
+          Tilbage til start
         </button>
       </main>
     )
   }
 
   const activeScene = sceneCatalog.find((scene) => scene.id === profile.sceneId)
-  const partnerName = profile.figure === 'mistress' ? 'Mistress' : 'Master'
+  const partnerName = partnerDisplayName(profile)
   const userChatName = profile.chatName.trim() || 'Dig'
 
   return (
@@ -2293,8 +2796,8 @@ export default function App() {
             {profile.privacyMode === 'private' ? 'Privat · gemmes ikke' : 'Gemmes kun på denne enhed'}
           </small>
           {!profile.partnerImageUrl && <small className="portrait-empty-text">Billede ikke oprettet endnu</small>}
-          {profile.partnerImageUrl === favoriteLook?.imageUrl && (
-            <small className="portrait-empty-text">Favorit på denne enhed</small>
+          {favoriteLook?.poseImages.includes(profile.partnerImageUrl || '') && (
+            <small className="portrait-empty-text">Fast partnerbillede</small>
           )}
         </div>
         <div className="chat-tools">
@@ -2325,17 +2828,22 @@ export default function App() {
             onClick={() => {
               void (async () => {
                 if (availableOn) {
+                  const error = await unsubscribeStayPush()
                   setAvailableOn(false)
-                  setAvailabilityNotice('Til rådighed er slået fra.')
+                  setAvailabilityNotice(error || 'Til rådighed er slået fra.')
                   return
                 }
-                const error = await requestStayNotifications()
+                const error = await subscribeStayPush({
+                  explicit: profile.notificationStyle === 'explicit',
+                  partnerTitle: partnerDisplayName(profile),
+                  plan: taskPlan,
+                })
                 if (error) {
                   setAvailabilityNotice(error)
                   return
                 }
                 setAvailableOn(true)
-                setAvailabilityNotice('Til rådighed er slået til, mens appen er aktiv.')
+                setAvailabilityNotice('Til rådighed er slået til. Opgaver kan nu komme, også når appen er lukket.')
               })()
             }}
           >
@@ -2474,6 +2982,10 @@ export default function App() {
           <button type="button" disabled={aiThinking} onClick={() => void requestTask()}>
             {aiThinking ? 'Venter på kommando…' : 'Giv mig en ordre'}
           </button>
+          <div className="task-shortcuts" aria-label="Særlige opgaver">
+            <button type="button" disabled={aiThinking} onClick={() => void requestInspection()}>Inspektion</button>
+            <button type="button" disabled={aiThinking} onClick={() => void requestProtocol()}>Protocol</button>
+          </div>
           <span>Ordren passer til scenen, din krop og dit legetøj.</span>
         </div>
         <div className="session-actions" aria-label="Hurtige scenevalg">
@@ -2491,6 +3003,7 @@ export default function App() {
             setEdgeLeft(20)
             void sendAiRequest('Hænderne væk. Pikken må bare stå og pulserer.', 'task', 'Stop')
           }}>Stop</button>
+          <button type="button" disabled={aiThinking} onClick={() => void sendRuinedMoment()}>Ruined</button>
 <button disabled={aiThinking} onClick={() => void sendCloseMoment()}>Næsten</button>
           <button className="finish" disabled={aiThinking} onClick={() => void sendClimaxMoment()}>Jeg kommer</button>
           <button onClick={() => tickSession('ok')}>Igen</button>

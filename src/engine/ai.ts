@@ -22,6 +22,10 @@ interface GeneratePartnerImageInput {
   signal?: AbortSignal
 }
 
+interface GeneratePartnerPoseInput extends GeneratePartnerImageInput {
+  referenceImageUrl: string
+}
+
 interface AnalyzeImageInput extends AskAiInput {
   file: File
 }
@@ -65,6 +69,7 @@ export async function askAi({
     body: JSON.stringify({
       profile: {
         chatName: profile.chatName,
+        partnerName: profile.partnerName,
         role: profile.role,
         playMode: profile.playMode,
         figure: profile.figure,
@@ -146,6 +151,38 @@ export async function generatePartnerImage({ profile, signal }: GeneratePartnerI
   }
   if (typeof data.imageUrl !== 'string' || !data.imageUrl.startsWith('data:image/')) {
     throw new Error('Billedmodellen svarede uden et billede')
+  }
+  await assertUsableGeneratedImage(data.imageUrl)
+  return data.imageUrl
+}
+
+export async function generatePartnerPose({
+  profile,
+  referenceImageUrl,
+  signal,
+}: GeneratePartnerPoseInput): Promise<string> {
+  if (!API_URL) throw new Error('Billed-AI er ikke konfigureret endnu')
+  if (!referenceImageUrl.startsWith('data:image/')) throw new Error('Det faste partnerbillede mangler')
+  const token = await getFirebaseAuth()?.currentUser?.getIdToken()
+  const response = await fetch(`${API_URL}/image/pose`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    signal,
+    body: JSON.stringify({
+      sceneId: profile.sceneId,
+      profile: imageProfile(profile),
+      referenceImageUrl,
+    }),
+  })
+  const data = (await response.json().catch(() => ({}))) as { imageUrl?: unknown; error?: unknown }
+  if (!response.ok) {
+    throw new Error(typeof data.error === 'string' ? data.error : `Positurfejl (${response.status})`)
+  }
+  if (typeof data.imageUrl !== 'string' || !data.imageUrl.startsWith('data:image/')) {
+    throw new Error('Billedmodellen svarede uden en ny positur')
   }
   await assertUsableGeneratedImage(data.imageUrl)
   return data.imageUrl
@@ -246,6 +283,7 @@ export async function analyzeImage({
 function imageProfile(profile: Profile) {
   return {
     chatName: profile.chatName,
+    partnerName: profile.partnerName,
     role: profile.role,
     figure: profile.figure,
     look: profile.look,

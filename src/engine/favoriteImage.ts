@@ -5,7 +5,24 @@ export interface FavoriteLook {
   userId: string
   imageUrl: string
   figure: 'master' | 'mistress'
+  partnerName: string
+  poseImages: string[]
   savedAt: string
+}
+
+const normalizeImages = (values: unknown, fallback: string): string[] => {
+  const images = Array.isArray(values) ? values : []
+  return [...new Set([fallback, ...images].filter(
+    (value): value is string => typeof value === 'string' && value.startsWith('data:image/'),
+  ))].slice(0, 4)
+}
+
+function normalizeLook(value: FavoriteLook): FavoriteLook {
+  return {
+    ...value,
+    partnerName: typeof value.partnerName === 'string' ? value.partnerName.slice(0, 32) : '',
+    poseImages: normalizeImages(value.poseImages, value.imageUrl),
+  }
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -37,13 +54,13 @@ function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => 
 }
 
 export async function saveFavoriteLook(look: FavoriteLook): Promise<void> {
-  await withStore('readwrite', (store) => store.put(look))
+  await withStore('readwrite', (store) => store.put(normalizeLook(look)))
 }
 
 export async function loadFavoriteLook(userId: string): Promise<FavoriteLook | null> {
   try {
     const value = await withStore<FavoriteLook | undefined>('readonly', (store) => store.get(userId))
-    return value || null
+    return value ? normalizeLook(value) : null
   } catch {
     return null
   }

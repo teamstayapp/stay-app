@@ -37,7 +37,7 @@
    **Udgiv til alle**.
 5. Åbn **Admin → Indhold**. De nye katalogfelter vises automatisk sammen med
    eksisterende redigeringer. Tryk **Gem og udgiv til alle** for at gemme
-   katalogversion 2 centralt.
+   katalogversion 4 centralt.
 6. Test én Free-, Solo- og Plus-konto. Plus-laget må kun kunne ses på
    Plus + NSFW.
 
@@ -51,7 +51,7 @@
 5. Tryk på hals/nakke: svaret må ikke instruere i tryk eller kvælning.
 6. Tryk **Noter**, safeword eller **For meget**: kropsvisningen skal lukke.
 
-## 6. Test Tæt på, Jeg kommer og favorit
+## 6. Test Tæt på, Jeg kommer og fast partner
 
 1. Vælg først **Penis** eller **Vulva** under **Din krop i chatten**.
 2. Start en scene og tryk **Tæt på**. AI-svaret skal passe til valget og den
@@ -60,9 +60,25 @@
    fortsat som en separat knap.
 4. Free skal få et varmt, ikke-eksplicit svar, også hvis NSFW tidligere har
    været valgt.
-5. Opret et partnerbillede, tryk **Gem som favorit**, lav eventuelt et andet
-   billede og tryk **Brug favorit**. Genbrug må ikke reducere billedsaldoen.
-6. Favoritten ligger kun på den aktuelle enhed. Test **Slet favorit** separat.
+5. Opret et partnerbillede og tryk **Brug som fast udseende**.
+6. Tryk **Ny positur – samme partner**. Det nye billede skal ligne samme person
+   og bruge ét figurbillede fra saldoen.
+7. Vælg et af de op til fire faste billeder igen. Genvalg må ikke reducere
+   billedsaldoen.
+8. Test **Fjern fast udseende** og **Lav helt ny partner** separat.
+
+## 7. Udgiv Firestore-reglerne
+
+Den nye version gemmer partnernavnet i brugerens profil. Udgiv derfor den
+medfølgende `firestore.rules` i Firebase, før partnernavnet testes på tværs af
+enheder.
 
 Bemærk: Repositoryet kan være privat, men en GitHub Pages-side kan afhængigt af
 GitHub-planen være offentlig. Der er ingen hemmelige nøgler i pakken.
+
+## 8. Slå Web Push til
+
+Følg `WEB_PUSH_OPSAETNING.md`. GitHub skal have den offentlige variabel
+`VITE_VAPID_PUBLIC`, og Cloudflare skal have VAPID-secrets, KV-bindingen
+`PUSH_SUBS` og Cron Trigger. Uden disse dele virker resten af appen fortsat,
+men “Til rådighed” viser en klar opsætningsfejl i stedet for at love baggrundspush.
