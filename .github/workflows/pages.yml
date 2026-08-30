@@ -33,6 +33,7 @@ jobs:
           VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
           VITE_ADMIN_EMAIL: ${{ vars.VITE_ADMIN_EMAIL }}
+          VITE_VAPID_PUBLIC: ${{ vars.VITE_VAPID_PUBLIC }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
