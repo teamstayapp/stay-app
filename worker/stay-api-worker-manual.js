@@ -1395,6 +1395,7 @@ function buildSystemPrompt(profileValue, stateValue, scene, intent, equipmentCat
                 'Svaret må ikke starte en ny hårdere handling. Safeword og ubehag har altid forrang.',
             ].join(' ')
             : '',
+        'Hvis brugeren beder om kegel eller reverse kegel: sig tydeligt typen, antal sekunder og gentagelser. Almindelig kegel er et roligt knib; reverse kegel er afspænding eller et blidt skub ud. Giv ikke lægeråd, smerte-guide eller instruktion om at presse hårdt.',
         'Safeword, stop, pause eller ubehag stopper straks scenen og giver en rolig, ikke-seksuel besked.',
         'Kun voksne og samtykke. Afvis mindreårige/ageplay, incest, grooming, raceplay, ikke-samtykke og seksualisering af virkelige personer.',
         'Giv aldrig praktiske instruktioner til kvælning/asfyksi, blod, skæring, ild, nåle, branding, waterboarding eller anden farlig skade.',

@@ -34,10 +34,10 @@ export interface DeviceMemory {
   last: string
 }
 
-export type TaskCategory = 'mix' | 'lingerie' | 'edge' | 'sissy' | 'protocol' | 'worship' | 'estim' | 'cei' | 'work'
+export type TaskCategory = 'mix' | 'lingerie' | 'edge' | 'sissy' | 'protocol' | 'worship' | 'estim' | 'cei' | 'work' | 'kegel' | 'reverse_kegel'
 export type TaskBank = Record<TaskCategory, string[]>
 
-export const TASK_CATEGORIES: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship', 'estim', 'cei', 'work']
+export const TASK_CATEGORIES: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship', 'estim', 'cei', 'work', 'kegel', 'reverse_kegel']
 
 export const DEFAULT_TASK_BANK: TaskBank = {
   mix: [],
@@ -83,6 +83,16 @@ export const DEFAULT_TASK_BANK: TaskBank = {
     'Hvis en plug allerede er sikker og behagelig, bliver den hvor den er. Stop ved smerte eller følelsesløshed.',
     'Ingen berøring på arbejde eller offentligt. Vent, til du er helt privat.',
     'Skriv “på plads”, når tøjet sidder diskret. Mere først, når du er privat.',
+  ],
+  kegel: [
+    'Almindelig kegel: knib 8 sekunder. Slip. Gentag 5 gange.',
+    'Kegel nu. Hold 5 sekunder. Pust ud.',
+    'Ti rolige knib. Ingen anden berøring.',
+  ],
+  reverse_kegel: [
+    'Reverse kegel: skub blidt ud i 6 sekunder. Slip.',
+    'Reverse kegel. Afspænd bækkenbunden i 8 sekunder. Ingen knib.',
+    'Skift: reverse kegel 5 sekunder, pause, så ét almindeligt knib.',
   ],
 }
 DEFAULT_TASK_BANK.mix = TASK_CATEGORIES

@@ -141,6 +141,8 @@ const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
   estim: 'E-stim',
   cei: 'Kondom / CEI',
   work: 'Diskret ude',
+  kegel: 'Kegel',
+  reverse_kegel: 'Reverse kegel',
 }
 
 function playStaySound(kind: 'moan' | 'come', existingContext?: AudioContext) {
@@ -310,6 +312,11 @@ export default function App() {
   const [taskBank, setTaskBank] = useState<TaskBank>(DEFAULT_TASK_BANK)
   const [taskEditorCategory, setTaskEditorCategory] = useState<TaskCategory>('lingerie')
   const [deviceSettingsUserId, setDeviceSettingsUserId] = useState('')
+  const notificationAiRequestRef = useRef<(
+    text: string,
+    intent: 'chat' | 'task' | 'touch' | 'close' | 'climax',
+    visibleText?: string,
+  ) => Promise<string | undefined>>(async () => undefined)
   const partnerPeakRef = useRef(false)
   const moanLockRef = useRef(false)
   const soundContextRef = useRef<AudioContext | null>(null)
@@ -492,6 +499,41 @@ export default function App() {
     if (!account || deviceSettingsUserId !== account.id) return
     saveTaskBank(account.id, taskBank)
   }, [account, deviceSettingsUserId, taskBank])
+
+  useEffect(() => {
+    if (!account) return
+    function receiveTask(raw: string) {
+      const task = raw.replace(/^Stay · /, '').trim()
+      if (!task || task === 'Ny note. Åbn appen.') return
+      setPhase('session')
+      setActiveTask(task)
+      if (!aiThinking) {
+        void notificationAiRequestRef.current(
+          `Ny opgave fra notifikation: ${task}. Tag den i rollen. Bekræft opgaven kort og sig hvad jeg skal gøre nu.`,
+          'task',
+          `Opgave: ${task}`,
+        )
+      }
+    }
+    function onMessage(event: MessageEvent) {
+      if (event.data?.type === 'stay-task' && typeof event.data.task === 'string') receiveTask(event.data.task)
+    }
+    function fromHash() {
+      if (!window.location.hash.startsWith('#stay-task=')) return
+      try {
+        receiveTask(decodeURIComponent(window.location.hash.slice('#stay-task='.length)))
+      } finally {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', onMessage)
+    window.addEventListener('hashchange', fromHash)
+    queueMicrotask(fromHash)
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', onMessage)
+      window.removeEventListener('hashchange', fromHash)
+    }
+  }, [account, aiThinking])
 
   useEffect(() => {
     if (!availableOn || !account || deviceSettingsUserId !== account.id) return
@@ -1203,6 +1245,10 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    notificationAiRequestRef.current = sendAiRequest
+  })
+
   async function sendText() {
     const t = draft.trim()
     if (!t || aiThinking) return
@@ -1282,6 +1328,13 @@ export default function App() {
 
   async function requestProtocol() {
     await sendAiRequest('Protocol. Jeg knæler og venter. Giv titel og næste ordre.', 'task', 'Protocol')
+  }
+
+  async function requestKegel(kind: 'kegel' | 'reverse') {
+    const text = kind === 'reverse'
+      ? 'Reverse kegel. Sig hvor mange sekunder jeg skal afspænde eller skubbe blidt ud, og hvornår jeg slipper. Ingen lægeråd og ingen smerte-guide.'
+      : 'Almindelig kegel. Sig hvor længe jeg skal knibe, hvor mange gentagelser, og hvornår jeg må slippe.'
+    await sendAiRequest(text, 'task', kind === 'reverse' ? 'Reverse kegel' : 'Kegel')
   }
 
   async function sendRuinedMoment() {
@@ -3174,18 +3227,24 @@ export default function App() {
             <small className="portrait-empty-text">Fast partnerbillede</small>
           )}
         </div>
-        <button
-          type="button"
-          className="session-menu-toggle"
-          aria-expanded={sessionMenuOpen}
-          aria-controls="session-side-menu"
-          onClick={() => setSessionMenuOpen((open) => !open)}
-        >
-          ☰ Menu
-        </button>
+        <div className="session-menu-row">
+          <button type="button" className="session-menu-toggle" onClick={() => { setSessionMenuOpen(false); setPhase('setup') }}>
+            ← Menu
+          </button>
+          <button
+            type="button"
+            className="session-menu-toggle"
+            aria-expanded={sessionMenuOpen}
+            aria-controls="session-side-menu"
+            onClick={() => setSessionMenuOpen((open) => !open)}
+          >
+            ☰ Scene
+          </button>
+        </div>
         <aside id="session-side-menu" className={sessionMenuOpen ? 'session-side-menu open' : 'session-side-menu'}>
           <div className="session-side-head">
             <strong>Scene og indstillinger</strong>
+            <button type="button" onClick={() => { setSessionMenuOpen(false); setPhase('setup') }}>← Opsætning</button>
             <button type="button" onClick={() => setSessionMenuOpen(false)}>× Luk</button>
           </div>
           <div className="chat-tools">
@@ -3431,6 +3490,8 @@ export default function App() {
           <div className="session-actions" aria-label="Flere scenevalg">
             <button type="button" disabled={aiThinking} onClick={() => void requestInspection()}>Inspektion</button>
             <button type="button" disabled={aiThinking} onClick={() => void requestProtocol()}>Protocol</button>
+            <button type="button" disabled={aiThinking} onClick={() => void requestKegel('kegel')}>Kegel</button>
+            <button type="button" disabled={aiThinking} onClick={() => void requestKegel('reverse')}>Reverse kegel</button>
             <button type="button" disabled={imageBusy || aiThinking} onClick={() => void createChatImage()}>
               {imageBusy ? 'Laver billede…' : 'Billede i chat'}
             </button>

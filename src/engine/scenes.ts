@@ -159,22 +159,26 @@ const extraScenes: Omit<ScenePreset, 'order'>[] = (Object.keys(FETISH_META) as F
     id: `fetish-${id}`, title: FETISH_META[id].title, blurb: FETISH_META[id].blurb,
     enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'venice-sd35', visionModel: 'mistral-31-24b',
     systemPrompt: fetishPrompt[id],
-    nsfwSystemPrompt: '',
-    plusSystemPrompt: '',
+    nsfwSystemPrompt: `Fræk lag: ${FETISH_META[id].title}. Skriv dansk, kort og direkte. Brug pik, fisse, røv, slikke og komme når det passer. Svar på spørgsmål i rollen. Én tydelig handling ad gangen. Ingen farlig how-to.`,
+    plusSystemPrompt: `Plus-lag: ${FETISH_META[id].title}, mere råt. Grove danske sexord. Edge dem. De kommer ikke uden lov. Ingen slurs, ingen mindreårige.`,
     taskPrompt: DEFAULT_TASK_PROMPT,
-    nsfwTaskPrompt: '',
-    plusTaskPrompt: '',
+    nsfwTaskPrompt: `Giv én fræk ${FETISH_META[id].title}-opgave. Kort. Vent på svar.`,
+    plusTaskPrompt: `Giv én rå Plus-opgave i ${FETISH_META[id].title}. Højst 30 sekunder. Ingen udløsning.`,
     imagePrompt: `Fictional adult character, ${FETISH_META[id].title} theme, cinematic portrait.`,
-    nsfwImagePrompt: '',
-    plusImagePrompt: '',
+    nsfwImagePrompt: `samme tydeligt voksne figur, ${FETISH_META[id].title}, intimt eksplicit voksenmotiv, aldrig mindreårig`,
+    plusImagePrompt: `samme tydeligt voksne figur, ${FETISH_META[id].title}, råt voksenmotiv, tæt, aldrig mindreårig`,
     openingPrompt: `Du har valgt ${FETISH_META[id].title}. Vi holder os til dine valgte grænser og dit safeword.`,
-    nsfwOpeningPrompt: '',
-    plusOpeningPrompt: '',
+    nsfwOpeningPrompt: `${FETISH_META[id].title} er slået til. Sig ja. Jeg styrer den første bevægelse.`,
+    plusOpeningPrompt: `Plus og ${FETISH_META[id].title}. Du rører når jeg siger det.`,
     requiredFetish: id,
   }))
 
 export const DEFAULT_SCENES: ScenePreset[] = [...baseScenes, ...extraScenes]
   .map((scene, order) => ({ ...scene, order }))
+
+function filled(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value : fallback
+}
 
 function normalize(value: Partial<ScenePreset>, fallback: ScenePreset): ScenePreset {
   const imageModel = IMAGE_MODELS.some((model) => model.id === value.imageModel)
@@ -190,14 +194,14 @@ function normalize(value: Partial<ScenePreset>, fallback: ScenePreset): ScenePre
     order: typeof value.order === 'number' ? value.order : fallback.order,
     imageModel,
     visionModel,
-    nsfwSystemPrompt: typeof value.nsfwSystemPrompt === 'string' ? value.nsfwSystemPrompt : fallback.nsfwSystemPrompt,
-    plusSystemPrompt: typeof value.plusSystemPrompt === 'string' ? value.plusSystemPrompt : fallback.plusSystemPrompt,
-    nsfwTaskPrompt: typeof value.nsfwTaskPrompt === 'string' ? value.nsfwTaskPrompt : fallback.nsfwTaskPrompt,
-    plusTaskPrompt: typeof value.plusTaskPrompt === 'string' ? value.plusTaskPrompt : fallback.plusTaskPrompt,
-    nsfwImagePrompt: typeof value.nsfwImagePrompt === 'string' ? value.nsfwImagePrompt : fallback.nsfwImagePrompt,
-    plusImagePrompt: typeof value.plusImagePrompt === 'string' ? value.plusImagePrompt : fallback.plusImagePrompt,
-    nsfwOpeningPrompt: typeof value.nsfwOpeningPrompt === 'string' ? value.nsfwOpeningPrompt : fallback.nsfwOpeningPrompt,
-    plusOpeningPrompt: typeof value.plusOpeningPrompt === 'string' ? value.plusOpeningPrompt : fallback.plusOpeningPrompt,
+    nsfwSystemPrompt: filled(value.nsfwSystemPrompt, fallback.nsfwSystemPrompt),
+    plusSystemPrompt: filled(value.plusSystemPrompt, fallback.plusSystemPrompt),
+    nsfwTaskPrompt: filled(value.nsfwTaskPrompt, fallback.nsfwTaskPrompt),
+    plusTaskPrompt: filled(value.plusTaskPrompt, fallback.plusTaskPrompt),
+    nsfwImagePrompt: filled(value.nsfwImagePrompt, fallback.nsfwImagePrompt),
+    plusImagePrompt: filled(value.plusImagePrompt, fallback.plusImagePrompt),
+    nsfwOpeningPrompt: filled(value.nsfwOpeningPrompt, fallback.nsfwOpeningPrompt),
+    plusOpeningPrompt: filled(value.plusOpeningPrompt, fallback.plusOpeningPrompt),
   }
 }
 

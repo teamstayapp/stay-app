@@ -730,6 +730,7 @@ button.partner-portrait:disabled { cursor: default; }
   font: 700 0.7rem system-ui, sans-serif;
   cursor: pointer;
 }
+.session-menu-row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.4rem; }
 
 .session-menu-backdrop {
   position: fixed;

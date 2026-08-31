@@ -2,6 +2,27 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 31. august 2026 — Kegel og Reverse kegel
+
+- **Kegel** og **Reverse kegel** er tilføjet som opgavetyper i flervalget.
+- Begge kategorier har egne standardopgaver, kan redigeres i opgavelisten og
+  bruges af Web Push.
+- Chatten har direkte knapper til Kegel og Reverse kegel under flere handlinger.
+- AI-prompten skelner mellem et roligt knib og afspænding/blidt skub ud og
+  undgår lægeråd, smerte-guide og hårdt pres.
+- NSFW/Plus-scenerne og den nyere notifikationsmenu er bevaret.
+
+## 31. august 2026 — NSFW/Plus-scener og notifikationer i chatten
+
+- Alle fetish-scener har igen udfyldte NSFW- og Plus-lag til chat, opgaver,
+  åbning og billeder.
+- Tomme sceneværdier fra admin bruger nu standardteksten i stedet for at
+  slå promptlaget fra.
+- Et tryk på en opgavenotifikation åbner appen og sender opgaven ind i chatten.
+- Chatkortet har separate knapper til opsætning og scenemenu.
+- De nyere rettelser til AI-billeder, flervalg og redigerbar opgaveliste er
+  bevaret.
+
 ## 31. august 2026 — billedsvar, flervalg og synlig opgaveliste
 
 - Cloudflare Workeren accepterer nu billeder som rå JPEG/PNG/WebP, JSON/base64

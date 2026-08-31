@@ -1,4 +1,4 @@
-const CACHE = 'stay-v6'
+const CACHE = 'stay-v8'
 const APP_ROOT = new URL('./', self.registration.scope).href
 const PUSH_CONFIG_URL = new URL('stay-push-config', self.registration.scope).href
 
@@ -83,6 +83,16 @@ const TASK_BANK = {
     'Ingen berøring på arbejde eller offentligt. Vent, til du er helt privat.',
     'Skriv “på plads”, når tøjet sidder diskret. Mere først, når du er privat.',
   ],
+  kegel: [
+    'Almindelig kegel: knib 8 sekunder. Slip. Gentag 5 gange.',
+    'Kegel nu. Hold 5 sekunder. Pust ud.',
+    'Ti rolige knib. Ingen anden berøring.',
+  ],
+  reverse_kegel: [
+    'Reverse kegel: skub blidt ud i 6 sekunder. Slip.',
+    'Reverse kegel. Afspænd bækkenbunden i 8 sekunder. Ingen knib.',
+    'Skift: reverse kegel 5 sekunder, pause, så ét almindeligt knib.',
+  ],
 }
 TASK_BANK.mix = Object.values(TASK_BANK).flat()
 
@@ -92,11 +102,16 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+  const task = (event.notification.data && event.notification.data.task) || event.notification.body || ''
+  const target = APP_ROOT + (task ? `#stay-task=${encodeURIComponent(task)}` : '')
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const existing = clients.find((client) => client.url.startsWith(self.registration.scope))
-      if (existing) return existing.focus()
-      return self.clients.openWindow(APP_ROOT)
+      if (existing) {
+        existing.postMessage({ type: 'stay-task', task })
+        return existing.focus()
+      }
+      return self.clients.openWindow(target)
     }),
   )
 })
@@ -128,7 +143,7 @@ async function showStayPush() {
     badge: './icon.svg',
     tag: 'stay-task',
     renotify: true,
-    data: { url: APP_ROOT },
+    data: { url: APP_ROOT + `#stay-task=${encodeURIComponent(task)}`, task },
   })
 }
 
