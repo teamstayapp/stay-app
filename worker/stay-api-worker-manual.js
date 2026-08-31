@@ -9,11 +9,6 @@ const ALLOWED_MODELS = new Set([
     'mistral-31-24b',
     'qwen3-vl-235b-a22b',
 ]);
-const ALLOWED_VISION_MODELS = new Set([
-    'mistral-31-24b',
-    'qwen3-vl-235b-a22b',
-    'venice-uncensored-role-play',
-]);
 const ALLOWED_IMAGE_MODELS = new Set([
     'grok-imagine-image',
     'lustify-v8',
@@ -368,7 +363,7 @@ async function analyzeImage(req, env, body) {
     if ('error' in sceneResult)
         return json(req, env, { error: sceneResult.error }, sceneResult.status);
     const scene = sceneResult.scene;
-    const selectedModel = ALLOWED_VISION_MODELS.has(scene.visionModel) ? scene.visionModel : VISION_MODEL;
+    const selectedModel = VISION_MODEL;
     const usageGate = await checkUsage(req, env, 'imageAnalysis');
     if ('error' in usageGate)
         return json(req, env, { error: usageGate.error }, usageGate.status);

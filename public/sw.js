@@ -1,4 +1,4 @@
-const CACHE = 'stay-v8'
+const CACHE = 'stay-v9'
 const APP_ROOT = new URL('./', self.registration.scope).href
 const PUSH_CONFIG_URL = new URL('stay-push-config', self.registration.scope).href
 
@@ -118,14 +118,16 @@ self.addEventListener('notificationclick', (event) => {
 
 async function showStayPush() {
   const settings = await readPushSettings()
+  const availableCategories = [...new Set([...Object.keys(TASK_BANK), ...Object.keys(settings.taskBank || {})])]
+  const categoryExists = (category) => availableCategories.includes(category)
   const selected = Array.isArray(settings.categories)
-    ? settings.categories.filter((category) => typeof category === 'string' && TASK_BANK[category])
+    ? settings.categories.filter((category) => typeof category === 'string' && categoryExists(category))
     : []
   const categories = selected.length
     ? selected
-    : [TASK_BANK[settings.category] ? settings.category : 'mix']
+    : [categoryExists(settings.category) ? settings.category : 'mix']
   const concreteCategories = categories.includes('mix')
-    ? Object.keys(TASK_BANK).filter((category) => category !== 'mix')
+    ? availableCategories.filter((category) => category !== 'mix')
     : categories
   const tasks = concreteCategories.flatMap((category) => {
     if (Object.prototype.hasOwnProperty.call(settings.taskBank || {}, category)) {

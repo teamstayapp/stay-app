@@ -2,6 +2,20 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 31. august 2026 — Vision-fix og centrale admin-opgaver
+
+- Billedanalyse bruger nu altid visionmodellen `mistral-31-24b`; den almindelige
+  Role Play-model forsøger ikke længere at læse billeder.
+- iPhone-billeder uden en præcis MIME-type accepteres, og billedet nedskaleres
+  til højst 1280 px før analyse.
+- Admin → Indhold har fået **Opgaver**, hvor kategorier og opgavetekster kan
+  tilføjes, redigeres, aktiveres, deaktiveres og slettes centralt.
+- Admin-kategorier vises dynamisk i brugerens flervalg og bruges i Web Push.
+- Brugerens lokale opgaveændringer bevares. **Gendan kategori** henter den
+  seneste globale admin-standard.
+- Alle tidligere billed-, “Leg med”-, Kegel- og notifikationsfunktioner er
+  bevaret.
+
 ## 31. august 2026 — Leg med brugerens tydelige ønske
 
 - AI-partneren afviser ikke længere strap-on, dildo, fingre, plug, kondom,

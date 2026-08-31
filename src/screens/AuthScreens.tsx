@@ -21,6 +21,7 @@ import {
   publishContentCatalog,
   type ContentCatalog,
   type ContentOption,
+  type TaskGroup,
 } from '../engine/contentCatalog'
 import {
   DEFAULT_USAGE_CONFIG,
@@ -380,6 +381,36 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
       [kind]: current[kind]
         .filter((option) => option.id !== id)
         .map((option, order) => ({ ...option, order })),
+    }))
+  }
+
+  function addTaskGroup() {
+    const stamp = Date.now().toString(36)
+    setContentNotice('')
+    setContentCatalog((current) => ({
+      ...current,
+      taskGroups: [
+        ...current.taskGroups,
+        { id: `kategori-${stamp}`, title: 'Ny kategori', enabled: true, order: current.taskGroups.length, tasks: [{ id: `opgave-${stamp}`, text: 'Ny opgave', enabled: true }] },
+      ],
+    }))
+  }
+
+  function patchTaskGroup(id: string, patch: Partial<TaskGroup>) {
+    setContentNotice('')
+    setContentCatalog((current) => ({
+      ...current,
+      taskGroups: current.taskGroups.map((group) => group.id === id ? { ...group, ...patch } : group),
+    }))
+  }
+
+  function removeTaskGroup(id: string) {
+    const group = contentCatalog.taskGroups.find((item) => item.id === id)
+    if (!group || !window.confirm(`Slet kategorien “${group.title}”? Ændringen gælder først, når du gemmer.`)) return
+    setContentNotice('')
+    setContentCatalog((current) => ({
+      ...current,
+      taskGroups: current.taskGroups.filter((item) => item.id !== id).map((item, order) => ({ ...item, order })),
     }))
   }
 
@@ -853,7 +884,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
         <section className="catalog-admin">
           <div className="sheet catalog-intro">
             <p className="kicker">Centralt indhold</p>
-            <h2>Udstyr og temaer</h2>
+            <h2>Udstyr, temaer og opgaver</h2>
             <p className="lede">
               Tilføj, redigér, deaktiver eller slet felterne. Når du gemmer, slår ændringen igennem hos alle brugere.
             </p>
@@ -870,7 +901,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                   setContentNotice('')
                   try {
                     await publishContentCatalog(contentCatalog)
-                    setContentNotice('Udstyr og temaer er udgivet til alle brugere.')
+                    setContentNotice('Udstyr, temaer og opgaver er udgivet til alle brugere.')
                   } catch (error) {
                     setContentNotice(error instanceof Error ? error.message : 'Indholdet kunne ikke gemmes.')
                   } finally {
@@ -962,6 +993,72 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 ))}
               </div>
             </details>
+          </details>
+
+          <details className="sheet catalog-fold">
+            <summary className="catalog-heading">
+              <div>
+                <p className="kicker">Kun admin</p>
+                <h2>Opgaver</h2>
+                <small>{contentCatalog.taskGroups.length} kategorier · tryk for at åbne</small>
+              </div>
+              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addTaskGroup() }}>+ Kategori</button>
+            </summary>
+            <p className="hint">Globale standardopgaver til appen og notifikationer. Brugernes egne lokale rettelser bevares, indtil de vælger “Gendan kategori”.</p>
+            {contentCatalog.taskGroups.map((group) => (
+              <details className="catalog-fold inner-fold" key={group.id}>
+                <summary className="catalog-heading">
+                  <div>
+                    <h2>{group.title || 'Kategori'}</h2>
+                    <small>{group.tasks.filter((task) => task.enabled).length} aktive</small>
+                  </div>
+                </summary>
+                <label className="field">
+                  Navn
+                  <input value={group.title} maxLength={40} onChange={(event) => patchTaskGroup(group.id, { title: event.target.value })} />
+                </label>
+                <label className="toggle-field">
+                  <input type="checkbox" checked={group.enabled} onChange={(event) => patchTaskGroup(group.id, { enabled: event.target.checked })} />
+                  Aktiv
+                </label>
+                <div className="catalog-list catalog-list-words">
+                  {group.tasks.map((task, index) => (
+                    <article className="catalog-row word-row" key={task.id}>
+                      <label className="field">
+                        Opgave
+                        <input
+                          value={task.text}
+                          maxLength={180}
+                          onChange={(event) => patchTaskGroup(group.id, {
+                            tasks: group.tasks.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item),
+                          })}
+                        />
+                      </label>
+                      <label className="toggle-field">
+                        <input
+                          type="checkbox"
+                          checked={task.enabled}
+                          onChange={(event) => patchTaskGroup(group.id, {
+                            tasks: group.tasks.map((item, itemIndex) => itemIndex === index ? { ...item, enabled: event.target.checked } : item),
+                          })}
+                        />
+                        Aktiv
+                      </label>
+                      <button type="button" className="safe" onClick={() => patchTaskGroup(group.id, { tasks: group.tasks.filter((item) => item.id !== task.id) })}>Slet</button>
+                    </article>
+                  ))}
+                </div>
+                <div className="row">
+                  <button
+                    type="button"
+                    onClick={() => patchTaskGroup(group.id, {
+                      tasks: [...group.tasks, { id: `opgave-${Date.now().toString(36)}`, text: 'Ny opgave', enabled: true }],
+                    })}
+                  >+ Opgave</button>
+                  <button type="button" className="safe" onClick={() => removeTaskGroup(group.id)}>Slet kategori</button>
+                </div>
+              </details>
+            ))}
           </details>
 
           <details className="sheet catalog-fold">

@@ -1,8 +1,9 @@
 import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import type { PlanId } from './plans'
 import { getFirebaseDb } from './firebase'
+import { DEFAULT_TASK_BANK, TASK_CATEGORIES } from './sessionStore'
 
-const CATALOG_VERSION = 5
+const CATALOG_VERSION = 6
 
 export interface ContentOption {
   id: string
@@ -16,12 +17,27 @@ export interface ContentOption {
   minimumPlan: PlanId
 }
 
+export interface TaskItem {
+  id: string
+  text: string
+  enabled: boolean
+}
+
+export interface TaskGroup {
+  id: string
+  title: string
+  enabled: boolean
+  order: number
+  tasks: TaskItem[]
+}
+
 export interface ContentCatalog {
   version: number
   equipment: ContentOption[]
   fetishes: ContentOption[]
   words: ContentOption[]
   wordsMinus: ContentOption[]
+  taskGroups: TaskGroup[]
 }
 
 type EquipmentSeed = [id: string, title: string, group: string, minimumPlan: PlanId, prompt?: string]
@@ -258,11 +274,26 @@ const defaultWordsMinus: ContentOption[] = [
   order, title, prompt, blurb: '', group: 'Minus', enabled: true, free: true, minimumPlan: 'free',
 }))
 
+const taskGroupTitles: Record<string, string> = {
+  mix: 'Blandet', lingerie: 'Lingeri', edge: 'Edge', sissy: 'Sissy', protocol: 'Protocol',
+  worship: 'Worship', estim: 'E-stim', cei: 'Kondom / CEI', work: 'Diskret ude',
+  kegel: 'Kegel', reverse_kegel: 'Reverse kegel',
+}
+
+const defaultTaskGroups: TaskGroup[] = TASK_CATEGORIES.map((id, order) => ({
+  id,
+  title: taskGroupTitles[id] || id,
+  enabled: true,
+  order,
+  tasks: (id === 'mix' ? [] : DEFAULT_TASK_BANK[id] || []).map((text, index) => ({ id: `${id}-${index + 1}`, text, enabled: true })),
+}))
+
 export const DEFAULT_CONTENT_CATALOG: ContentCatalog = {
   version: CATALOG_VERSION,
   equipment,
   words: defaultWords,
   wordsMinus: defaultWordsMinus,
+  taskGroups: defaultTaskGroups,
   fetishes: [
     { id: 'edge', title: 'Kant', blurb: 'Op, hold, nægt. Kernen.', prompt: 'Fokusér på kontrolleret opbygning, stop og gentagelser.', group: 'Kerne', enabled: true, free: true, minimumPlan: 'free', order: 0 },
     { id: 'power', title: 'Styring', blurb: 'Du. Nu. Service. Voksne roller.', prompt: 'Fokusér på tydelige voksne roller, aftalte regler og service.', group: 'Kerne', enabled: true, free: true, minimumPlan: 'free', order: 1 },
@@ -330,6 +361,33 @@ function normalizeOptions(value: unknown, fallback: ContentOption[], mergeDefaul
     .map((item, order) => ({ ...item, order }))
 }
 
+function normalizeTaskGroups(value: unknown, fallback: TaskGroup[], mergeDefaults: boolean): TaskGroup[] {
+  const incoming = Array.isArray(value) ? value : []
+  const parsed: TaskGroup[] = incoming.flatMap((item, order) => {
+    if (!item || typeof item !== 'object') return []
+    const raw = item as Partial<TaskGroup>
+    const id = text(raw.id, '', 40).toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+    const title = text(raw.title, '', 40)
+    if (!id || !title) return []
+    const tasks = Array.isArray(raw.tasks) ? raw.tasks.flatMap((task, index) => {
+      if (!task || typeof task !== 'object') return []
+      const row = task as Partial<TaskItem>
+      const taskText = text(row.text, '', 180)
+      if (!taskText) return []
+      return [{ id: text(row.id, `t-${index}`, 60), text: taskText, enabled: row.enabled !== false }]
+    }) : []
+    return [{ id, title, enabled: raw.enabled !== false, order: typeof raw.order === 'number' ? raw.order : order, tasks }]
+  })
+  const fallbackById = new Map(fallback.map((item) => [item.id, item]))
+  const parsedById = new Map(parsed.map((item) => [item.id, item]))
+  const merged = mergeDefaults
+    ? [...fallback.map((item) => parsedById.get(item.id) ?? item), ...parsed.filter((item) => !fallbackById.has(item.id))]
+    : parsed
+  return (merged.length ? merged : structuredClone(fallback))
+    .sort((a, b) => a.order - b.order)
+    .map((item, order) => ({ ...item, order }))
+}
+
 function normalizeCatalog(value: unknown): ContentCatalog {
   if (!value || typeof value !== 'object') return structuredClone(DEFAULT_CONTENT_CATALOG)
   const raw = value as Partial<ContentCatalog>
@@ -340,6 +398,7 @@ function normalizeCatalog(value: unknown): ContentCatalog {
     fetishes: normalizeOptions(raw.fetishes, DEFAULT_CONTENT_CATALOG.fetishes, migrate),
     words: normalizeOptions(raw.words, DEFAULT_CONTENT_CATALOG.words, migrate),
     wordsMinus: normalizeOptions(raw.wordsMinus, DEFAULT_CONTENT_CATALOG.wordsMinus, migrate),
+    taskGroups: normalizeTaskGroups(raw.taskGroups, DEFAULT_CONTENT_CATALOG.taskGroups, migrate),
   }
 }
 

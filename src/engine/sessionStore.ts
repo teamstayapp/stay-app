@@ -34,8 +34,8 @@ export interface DeviceMemory {
   last: string
 }
 
-export type TaskCategory = 'mix' | 'lingerie' | 'edge' | 'sissy' | 'protocol' | 'worship' | 'estim' | 'cei' | 'work' | 'kegel' | 'reverse_kegel'
-export type TaskBank = Record<TaskCategory, string[]>
+export type TaskCategory = string
+export type TaskBank = Record<string, string[]>
 
 export const TASK_CATEGORIES: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship', 'estim', 'cei', 'work', 'kegel', 'reverse_kegel']
 
@@ -265,11 +265,9 @@ export function saveAvailability(userId: string, available: boolean): void {
 export function loadTaskPlan(userId: string): TaskPlan {
   try {
     const parsed = JSON.parse(localStorage.getItem(TASK_PLAN_PREFIX + userId) || '') as Partial<TaskPlan>
-    const legacyCategory = TASK_CATEGORIES.includes(parsed.category as TaskCategory)
-      ? parsed.category as TaskCategory
-      : 'mix'
+    const legacyCategory = safeTaskCategory(parsed.category) || 'mix'
     const storedCategories = Array.isArray(parsed.categories)
-      ? [...new Set(parsed.categories.filter((category): category is TaskCategory => TASK_CATEGORIES.includes(category as TaskCategory)))]
+      ? [...new Set(parsed.categories.map(safeTaskCategory).filter(Boolean))]
       : []
     const categories = storedCategories.length ? storedCategories : [legacyCategory]
     const normalizedCategories = categories.includes('mix') ? ['mix' as TaskCategory] : categories
@@ -285,14 +283,15 @@ export function loadTaskPlan(userId: string): TaskPlan {
   }
 }
 
-export function loadTaskBank(userId: string): TaskBank {
+export function loadTaskBank(userId: string, defaults: TaskBank = DEFAULT_TASK_BANK): TaskBank {
   const fallback = Object.fromEntries(
-    TASK_CATEGORIES.map((category) => [category, [...DEFAULT_TASK_BANK[category]]]),
+    Object.entries(defaults).map(([category, entries]) => [category, [...entries]]),
   ) as TaskBank
   try {
     const parsed = JSON.parse(localStorage.getItem(TASK_BANK_PREFIX + userId) || '') as Partial<TaskBank>
-    for (const category of TASK_CATEGORIES) {
-      const entries = parsed[category]
+    for (const [rawCategory, entries] of Object.entries(parsed)) {
+      const category = safeTaskCategory(rawCategory)
+      if (!category) continue
       if (!Array.isArray(entries)) continue
       const cleaned = entries
         .filter((entry): entry is string => typeof entry === 'string')
@@ -308,19 +307,28 @@ export function loadTaskBank(userId: string): TaskBank {
 }
 
 export function saveTaskBank(userId: string, bank: TaskBank): void {
-  const safeBank = Object.fromEntries(TASK_CATEGORIES.map((category) => [
-    category,
-    (bank[category] || []).map((entry) => entry.trim().slice(0, 180)).filter(Boolean).slice(0, 24),
-  ]))
+  const safeBank = Object.fromEntries(Object.entries(bank)
+    .slice(0, 40)
+    .flatMap(([rawCategory, entries]) => {
+      const category = safeTaskCategory(rawCategory)
+      return category ? [[category, (entries || []).map((entry) => entry.trim().slice(0, 180)).filter(Boolean).slice(0, 24)]] : []
+    }))
   localStorage.setItem(TASK_BANK_PREFIX + userId, JSON.stringify(safeBank))
 }
 
 export function saveTaskPlan(userId: string, plan: TaskPlan): void {
+  const categories = [...new Set(plan.categories.map(safeTaskCategory).filter(Boolean))]
   localStorage.setItem(TASK_PLAN_PREFIX + userId, JSON.stringify({
-    category: plan.categories[0] || plan.category,
-    categories: plan.categories.length ? plan.categories : [plan.category],
+    category: categories[0] || safeTaskCategory(plan.category) || 'mix',
+    categories: categories.length ? categories : ['mix'],
     intervalMin: Math.max(5, Math.min(360, plan.intervalMin)),
     count: Math.max(1, Math.min(24, plan.count)),
     mode: plan.mode,
   }))
+}
+
+function safeTaskCategory(value: unknown): string {
+  return typeof value === 'string'
+    ? value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 40)
+    : ''
 }

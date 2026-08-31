@@ -332,13 +332,15 @@ function imageProfile(profile: Profile) {
 }
 
 async function prepareImageDataUrl(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) throw new Error('Vælg et billede')
+  if (file.type && !file.type.startsWith('image/') && file.type !== 'application/octet-stream') {
+    throw new Error('Vælg et billede')
+  }
   if (file.size > 20 * 1024 * 1024) throw new Error('Billedet må højst fylde 20 MB')
 
   const objectUrl = URL.createObjectURL(file)
   try {
     const image = await loadImage(objectUrl)
-    const maxSide = 1_600
+    const maxSide = 1_280
     const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))

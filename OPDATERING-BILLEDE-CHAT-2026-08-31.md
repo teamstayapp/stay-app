@@ -4,6 +4,7 @@
 
 - AI-billeder modtages som rå JPEG/PNG/WebP, JSON/base64 eller billed-URL og kontrolleres, før de sendes til appen.
 - Hvis den valgte billedmodel eller svarform fejler, prøver Worker automatisk `venice-sd35` og JSON/base64.
+- Billedanalyse bruger altid `mistral-31-24b`; iPhone-billeder uden præcis MIME-type accepteres og tilpasses til højst 1280 px.
 - Hårfarve og hårlængde er enkeltvalg, mens **Opsat** og **Pjusket** kan kombineres med længden.
 - Chatten har fået mere plads. Noter, lyd, tilgængelighed, safeword og målere ligger i **Menu**.
 - Tryk på partnerbilledet eller et billede i chatten for fuld skærm. Tryk igen for normal visning.
@@ -14,6 +15,7 @@
 - Nye opgavekategorier: **E-stim**, **Kondom / CEI**, **Diskret ude**, **Kegel** og **Reverse kegel**.
 - Flere opgavetyper kan vælges samtidig under **Opgaver i løbet af dagen**.
 - Opgavetekster vises direkte i en opgaveliste, hvor de kan tilføjes, redigeres, slettes og gendannes. De gemmes lokalt pr. konto og bruges i Web Push.
+- Admin kan administrere globale opgavekategorier og standardtekster under **Admin → Indhold → Opgaver**.
 
 ## Sådan lægges opdateringen ud
 

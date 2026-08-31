@@ -100,7 +100,6 @@ import {
   saveTaskBank,
   DEFAULT_TASK_PLAN,
   DEFAULT_TASK_BANK,
-  TASK_CATEGORIES,
   type TaskCategory,
   type TaskBank,
   type TaskPlan,
@@ -131,7 +130,7 @@ import { loadPartnerGallery, savePartnerGallery } from './engine/partnerGallery'
 import { localClimaxReply, localCloseReply } from './engine/climax'
 import './App.css'
 
-const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
+const TASK_CATEGORY_LABELS: Record<string, string> = {
   mix: 'Blandet',
   lingerie: 'Lingeri',
   edge: 'Edge',
@@ -341,6 +340,29 @@ export default function App() {
   const [entitlementLoaded, setEntitlementLoaded] = useState(false)
   const [sceneCatalog, setSceneCatalog] = useState(DEFAULT_SCENES)
   const [contentCatalog, setContentCatalog] = useState(DEFAULT_CONTENT_CATALOG)
+  const activeTaskGroups = useMemo(
+    () => contentCatalog.taskGroups.filter((group) => group.enabled).sort((a, b) => a.order - b.order),
+    [contentCatalog.taskGroups],
+  )
+  const activeTaskCategories = useMemo(
+    () => ['mix', ...activeTaskGroups.filter((group) => group.id !== 'mix').map((group) => group.id)],
+    [activeTaskGroups],
+  )
+  const adminTaskBank = useMemo(() => {
+    const bank = Object.fromEntries(activeTaskGroups.map((group) => [
+      group.id,
+      group.tasks.filter((task) => task.enabled).map((task) => task.text),
+    ])) as TaskBank
+    bank.mix = activeTaskGroups
+      .filter((group) => group.id !== 'mix')
+      .flatMap((group) => group.tasks.filter((task) => task.enabled).map((task) => task.text))
+    return bank
+  }, [activeTaskGroups])
+  const taskCategoryLabel = (category: string) => (
+    activeTaskGroups.find((group) => group.id === category)?.title
+    || TASK_CATEGORY_LABELS[category]
+    || category
+  )
   const [savedSessionAvailable, setSavedSessionAvailable] = useState(false)
   const [panicDestination, setPanicDestination] = useState<PanicDestination>({
     mode: 'decoy',
@@ -456,7 +478,7 @@ export default function App() {
     const notificationStyle = loadNotificationStyle(account.id)
     const savedPanicDestination = loadPanicDestination(account.id)
     const savedTaskPlan = loadTaskPlan(account.id)
-    const savedTaskBank = loadTaskBank(account.id)
+    const savedTaskBank = loadTaskBank(account.id, adminTaskBank)
     const memory = privacyMode === 'device' ? loadDeviceMemory(account.id) : { notes: '', last: '' }
     void Promise.all([hasDeviceSession(account.id), hasStayPushSubscription()]).then(([available, pushActive]) => {
       setSavedSessionAvailable(available)
@@ -466,8 +488,13 @@ export default function App() {
         && 'Notification' in window
         && Notification.permission === 'granted',
       )
-      setTaskPlan(savedTaskPlan)
-      setTaskBank(savedTaskBank)
+      const selectedTaskCategories = savedTaskPlan.categories.filter((category) => activeTaskCategories.includes(category))
+      const normalizedTaskCategories = selectedTaskCategories.length ? selectedTaskCategories : ['mix']
+      setTaskPlan({ ...savedTaskPlan, category: normalizedTaskCategories[0], categories: normalizedTaskCategories })
+      setTaskBank({ ...adminTaskBank, ...savedTaskBank })
+      setTaskEditorCategory((current) => activeTaskCategories.includes(current)
+        ? current
+        : activeTaskCategories.find((category) => category !== 'mix') || 'mix')
       setProfile((current) => ({
         ...current,
         privacyMode,
@@ -478,7 +505,7 @@ export default function App() {
       setPanicDestination(savedPanicDestination)
       setDeviceSettingsUserId(account.id)
     })
-  }, [account])
+  }, [account, activeTaskCategories, adminTaskBank])
 
   useEffect(() => {
     if (!account || deviceSettingsUserId !== account.id || profile.privacyMode !== 'device') return
@@ -2050,7 +2077,7 @@ export default function App() {
             <div className="field task-category-field">
               <span>Typer opgaver — vælg gerne flere</span>
               <div className="task-category-options" role="group" aria-label="Vælg typer opgaver">
-                {TASK_CATEGORIES.map((category) => {
+                {activeTaskCategories.map((category) => {
                   const selected = taskPlan.categories.includes(category)
                   return (
                     <button
@@ -2067,7 +2094,7 @@ export default function App() {
                         const categories = next.length ? next : ['mix' as TaskCategory]
                         return { ...current, category: categories[0], categories }
                       })}
-                    >{TASK_CATEGORY_LABELS[category]}</button>
+                    >{taskCategoryLabel(category)}</button>
                   )
                 })}
               </div>
@@ -2130,21 +2157,21 @@ export default function App() {
                   <strong id="task-list-heading">Opgaveliste</strong>
                   <small>Tilføj, ret eller slet dine egne opgaver.</small>
                 </div>
-                <span>{taskBank[taskEditorCategory].length} stk.</span>
+                <span>{(taskBank[taskEditorCategory] || []).length} stk.</span>
               </div>
               <div className="task-editor-tabs" role="group" aria-label="Kategori som skal redigeres">
-                {TASK_CATEGORIES.filter((category) => category !== 'mix').map((category) => (
+                {activeTaskCategories.filter((category) => category !== 'mix').map((category) => (
                   <button
                     key={category}
                     type="button"
                     className={taskEditorCategory === category ? 'on' : ''}
                     aria-pressed={taskEditorCategory === category}
                     onClick={() => setTaskEditorCategory(category)}
-                  >{TASK_CATEGORY_LABELS[category]}</button>
+                  >{taskCategoryLabel(category)}</button>
                 ))}
               </div>
               <div className="task-text-list">
-                {taskBank[taskEditorCategory].map((line, index) => (
+                {(taskBank[taskEditorCategory] || []).map((line, index) => (
                   <div className="task-text-row" key={`${taskEditorCategory}-${index}`}>
                     <label className="field">
                       <span>Opgave {index + 1}</span>
@@ -2153,7 +2180,7 @@ export default function App() {
                         maxLength={180}
                         onChange={(event) => setTaskBank((current) => ({
                           ...current,
-                          [taskEditorCategory]: current[taskEditorCategory].map((entry, entryIndex) => (
+                          [taskEditorCategory]: (current[taskEditorCategory] || []).map((entry, entryIndex) => (
                             entryIndex === index ? event.target.value : entry
                           )),
                         }))}
@@ -2165,19 +2192,19 @@ export default function App() {
                       aria-label={`Slet opgave ${index + 1}`}
                       onClick={() => setTaskBank((current) => ({
                         ...current,
-                        [taskEditorCategory]: current[taskEditorCategory].filter((_, entryIndex) => entryIndex !== index),
+                        [taskEditorCategory]: (current[taskEditorCategory] || []).filter((_, entryIndex) => entryIndex !== index),
                       }))}
                     >Slet</button>
                   </div>
                 ))}
-                {!taskBank[taskEditorCategory].length && <p className="privacy-note">Ingen opgaver i denne kategori endnu.</p>}
+                {!(taskBank[taskEditorCategory] || []).length && <p className="privacy-note">Ingen opgaver i denne kategori endnu.</p>}
               </div>
               <div className="row">
                 <button
                   type="button"
                   onClick={() => setTaskBank((current) => ({
                     ...current,
-                    [taskEditorCategory]: [...current[taskEditorCategory], 'Ny opgave'],
+                    [taskEditorCategory]: [...(current[taskEditorCategory] || []), 'Ny opgave'],
                   }))}
                 >+ Tilføj tekst</button>
                 <button
@@ -2185,7 +2212,7 @@ export default function App() {
                   className="ghost"
                   onClick={() => setTaskBank((current) => ({
                     ...current,
-                    [taskEditorCategory]: [...DEFAULT_TASK_BANK[taskEditorCategory]],
+                    [taskEditorCategory]: [...(adminTaskBank[taskEditorCategory] || DEFAULT_TASK_BANK[taskEditorCategory] || [])],
                   }))}
                 >Gendan kategori</button>
               </div>
