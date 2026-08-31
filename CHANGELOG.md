@@ -2,6 +2,16 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 31. august 2026 — Leg med brugerens tydelige ønske
+
+- AI-partneren afviser ikke længere strap-on, dildo, fingre, plug, kondom,
+  mund, tunge eller kropslig leg alene, fordi elementet ikke var afkrydset som
+  udstyr, når brugeren selv tydeligt beder om det i en voksen NSFW-scene.
+- En konkret anmodning gælder den aktuelle scene; safeword, stop, minus-listen,
+  ubehag og øvrige valgte grænser har fortsat altid forrang.
+- Den robuste billedmodtagelse og alle tidligere Kegel-, notifikations- og
+  opgavefunktioner er bevaret.
+
 ## 31. august 2026 — Kegel og Reverse kegel
 
 - **Kegel** og **Reverse kegel** er tilføjet som opgavetyper i flervalget.
