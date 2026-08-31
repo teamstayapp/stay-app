@@ -57,6 +57,14 @@ import { AdminScreen, LoginScreen } from './screens/AuthScreens'
 import { isStandalone } from './pwa'
 import { availableScenes, DEFAULT_SCENES, observeScenes, openingPromptForPlan } from './engine/scenes'
 import {
+  daysSinceOrgasm,
+  loadFrueState,
+  lockBlocksClimax,
+  saveFrueState,
+  statusLine,
+  type FrueState,
+} from './engine/frue'
+import {
   DEFAULT_CONTENT_CATALOG,
   observeContentCatalog,
   planCanUseContent,
@@ -166,7 +174,11 @@ function playStaySound(kind: 'moan' | 'come', existingContext?: AudioContext) {
   }
 }
 
-function profileWithCatalog(profile: Profile, catalog: ContentCatalog): Profile {
+function profileWithCatalog(
+  profile: Profile,
+  catalog: ContentCatalog,
+  extra?: { liveStatusText?: string; workMode?: boolean; orgasmLockText?: string },
+): Profile {
   const selectedFetishes = catalog.fetishes.filter((item) => item.enabled && profile.fetishes.includes(item.id))
   const selectedEquipment = catalog.equipment.filter(
     (item) => item.enabled && planCanUseContent(profile.plan, item) && profile.equipment.includes(item.id),
@@ -179,6 +191,9 @@ function profileWithCatalog(profile: Profile, catalog: ContentCatalog): Profile 
     spicyLexicon: catalog.words.filter((item) => item.enabled).map((item) => `${item.title} = ${item.prompt}`).join('; ').slice(0, 1_200),
     spicyMinus: catalog.wordsMinus.filter((item) => item.enabled).map((item) => item.title).join(', ').slice(0, 600),
     catalogPrompt: selectedFetishes.map((item) => item.prompt).filter(Boolean).join(' '),
+    liveStatusText: extra?.liveStatusText,
+    workMode: extra?.workMode,
+    orgasmLockText: extra?.orgasmLockText,
   }
 }
 
@@ -274,6 +289,7 @@ function PartnerAgeInput({ value, onChange }: { value: number; onChange: (age: n
 export default function App() {
   const [phase, setPhase] = useState<Phase>('age')
   const [profile, setProfile] = useState<Profile>(emptyProfile)
+  const [frue, setFrue] = useState<FrueState>(() => loadFrueState())
   const [lines, setLines] = useState<Line[]>([])
   const [draft, setDraft] = useState('')
   const [near, setNear] = useState<Nearness>('ok')
@@ -340,6 +356,11 @@ export default function App() {
   const [entitlementLoaded, setEntitlementLoaded] = useState(false)
   const [sceneCatalog, setSceneCatalog] = useState(DEFAULT_SCENES)
   const [contentCatalog, setContentCatalog] = useState(DEFAULT_CONTENT_CATALOG)
+  const aiProfile = profileWithCatalog(profile, contentCatalog, {
+    liveStatusText: statusLine(frue.status),
+    workMode: frue.workMode || frue.status.place === 'work',
+    orgasmLockText: lockBlocksClimax(frue),
+  })
   const activeTaskGroups = useMemo(
     () => contentCatalog.taskGroups.filter((group) => group.enabled).sort((a, b) => a.order - b.order),
     [contentCatalog.taskGroups],
@@ -528,6 +549,10 @@ export default function App() {
   }, [account, deviceSettingsUserId, taskBank])
 
   useEffect(() => {
+    saveFrueState(frue)
+  }, [frue])
+
+  useEffect(() => {
     if (!account) return
     function receiveTask(raw: string) {
       const task = raw.replace(/^Stay · /, '').trim()
@@ -565,14 +590,14 @@ export default function App() {
   useEffect(() => {
     if (!availableOn || !account || deviceSettingsUserId !== account.id) return
     void updateStayPush({
-      explicit: profile.notificationStyle === 'explicit',
+      explicit: profile.notificationStyle === 'explicit' && !frue.workMode && frue.status.place !== 'work',
       partnerTitle: profile.partnerName.trim() || (profile.figure === 'mistress' ? 'Mistress' : 'Master'),
       plan: taskPlan,
       taskBank,
     }).then((error) => {
       if (error) setAvailabilityNotice(error)
     })
-  }, [account, availableOn, deviceSettingsUserId, profile.figure, profile.notificationStyle, profile.partnerName, taskBank, taskPlan])
+  }, [account, availableOn, deviceSettingsUserId, frue.status.place, frue.workMode, profile.figure, profile.notificationStyle, profile.partnerName, taskBank, taskPlan])
 
   useEffect(() => {
     if (!account || profile.privacyMode !== 'device' || (phase !== 'session' && phase !== 'aftercare')) return
@@ -817,7 +842,7 @@ export default function App() {
     push(youLine('Viste et billede'))
     try {
       const reply = await analyzeImage({
-        profile: profileWithCatalog(profile, contentCatalog),
+        profile: aiProfile,
         near,
         cycle,
         partnerHeat,
@@ -855,7 +880,7 @@ export default function App() {
     let identityClearFailed = false
     try {
       const imageUrl = await generatePartnerImage({
-        profile: profileWithCatalog(profile, contentCatalog),
+        profile: aiProfile,
         signal: controller.signal,
       })
       setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
@@ -910,7 +935,7 @@ export default function App() {
     setImageNotice(`Laver en ny positur med samme ${partnerDisplayName(profile)}…`)
     try {
       const imageUrl = await generatePartnerPose({
-        profile: profileWithCatalog(profile, contentCatalog),
+        profile: aiProfile,
         referenceImageUrl: favoriteLook.imageUrl,
         signal: controller.signal,
       })
@@ -964,12 +989,12 @@ export default function App() {
     try {
       const imageUrl = favoriteLook
         ? await generatePartnerPose({
-            profile: profileWithCatalog(profile, contentCatalog),
+            profile: aiProfile,
             referenceImageUrl: favoriteLook.imageUrl,
             signal: controller.signal,
           })
         : await generatePartnerImage({
-            profile: profileWithCatalog(profile, contentCatalog),
+            profile: aiProfile,
             signal: controller.signal,
           })
       setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
@@ -1240,7 +1265,7 @@ export default function App() {
     push(youLine(visibleText))
     try {
       const reply = await askAi({
-        profile: profileWithCatalog(profile, contentCatalog),
+        profile: aiProfile,
         near,
         cycle,
         partnerHeat,
@@ -1311,6 +1336,17 @@ export default function App() {
     )
   }
 
+  async function failTask() {
+    const task = activeTask.trim()
+    if (!task || aiThinking) return
+    setActiveTask('')
+    await sendAiRequest(
+      `Jeg fuldførte ikke opgaven: ${task}. Reager kort i rollen uden at antage hvorfor, respekter mine grænser, og sig hvad der sker nu.`,
+      'chat',
+      'Ikke fuldført',
+    )
+  }
+
   async function sendTaskPhoto(file: File) {
     const task = activeTask.trim()
     if (!task || aiThinking) return
@@ -1327,7 +1363,7 @@ export default function App() {
     setAiThinking(true)
     try {
       const reply = await analyzeImage({
-        profile: profileWithCatalog(profile, contentCatalog),
+        profile: aiProfile,
         near,
         cycle,
         partnerHeat,
@@ -1398,15 +1434,25 @@ export default function App() {
     if (aiThinking) return
     setNear('close')
     setRunning(false)
+    setFrue((current) => current.lock === 'edges' && current.lockEdges > 0
+      ? { ...current, lockEdges: current.lockEdges - 1 }
+      : current)
     await sendAiRequest('Jeg er tæt på', 'close', 'Jeg er tæt på')
   }
 
   async function sendClimaxMoment() {
     if (aiThinking) return
+    const blocked = lockBlocksClimax(frue)
+    if (blocked) {
+      push(systemLine(blocked))
+      await sendAiRequest(`Jeg vil komme, men låsen siger: ${blocked}`, 'close', 'Låst udløsning')
+      return
+    }
     setNear('close')
     setRunning(false)
     setUserHeat(100)
     setPartnerHeat((h) => Math.min(100, profile.playMode === 'mutual' ? 100 : h + 18))
+    setFrue((current) => ({ ...current, lastOrgasmAt: new Date().toISOString() }))
     await sendAiRequest('Jeg kommer nu', 'climax', 'Jeg kommer')
   }
 
@@ -2217,6 +2263,137 @@ export default function App() {
                 >Gendan kategori</button>
               </div>
             </section>
+          </div>
+        </details>
+
+        <details className="setup-fold frue-settings">
+          <summary>
+            <span className="setup-fold-title">
+              <strong>Frue</strong>
+              <small>Status, udløsningslås, plug-dagbog og heldagsplan</small>
+            </span>
+            <span className="setup-fold-count">{frue.workMode ? 'Arbejde' : frue.lock === 'free' ? 'Fri' : 'Låst'}</span>
+          </summary>
+          <div className="setup-fold-content">
+            <label className={frue.workMode ? 'privacy-option on' : 'privacy-option'}>
+              <input
+                type="checkbox"
+                checked={frue.workMode}
+                onChange={(event) => setFrue((current) => ({ ...current, workMode: event.target.checked }))}
+              />
+              <span><strong>Arbejds-mode</strong><small>Altid diskrete notifikationer og ingen fræk tekst på låseskærmen.</small></span>
+            </label>
+
+            <h3>Udløsningslås</h3>
+            <div className="row">
+              {([['free', 'Tilladt'], ['denied', 'Ikke tilladt'], ['edges', 'Edge først'], ['after_tasks', 'Efter opgaver']] as const).map(([id, title]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={frue.lock === id ? 'chip on' : 'chip'}
+                  onClick={() => setFrue((current) => ({ ...current, lock: id }))}
+                >{title}</button>
+              ))}
+            </div>
+            {frue.lock === 'edges' && (
+              <label className="field">
+                <span>Antal edges før tilladelse</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={20}
+                  value={frue.lockEdges}
+                  onChange={(event) => setFrue((current) => ({
+                    ...current,
+                    lockEdges: Math.max(1, Math.min(20, Number(event.target.value) || 1)),
+                  }))}
+                />
+              </label>
+            )}
+            <p className="hint">Dage siden registreret udløsning: {daysSinceOrgasm(frue.lastOrgasmAt)}. Safeword stopper altid scenen.</p>
+
+            <h3>Heldagsplan</h3>
+            {frue.dayPlan.map((block) => (
+              <label key={block.id} className={block.accepted ? 'privacy-option on' : 'privacy-option'}>
+                <input
+                  type="checkbox"
+                  checked={block.accepted}
+                  onChange={(event) => setFrue((current) => ({
+                    ...current,
+                    dayPlan: current.dayPlan.map((row) => row.id === block.id ? { ...row, accepted: event.target.checked } : row),
+                  }))}
+                />
+                <span><strong>{block.title}</strong><small>{block.text}</small></span>
+              </label>
+            ))}
+
+            <div className="frue-section-heading">
+              <h3>Plug-dagbog</h3>
+              <button
+                type="button"
+                onClick={() => setFrue((current) => ({
+                  ...current,
+                  plugLog: [{
+                    id: String(Date.now()),
+                    plug: 'vinget plug',
+                    startedAt: new Date().toISOString(),
+                    slept: false,
+                    note: '',
+                  }, ...current.plugLog].slice(0, 20),
+                }))}
+              >+ Start log</button>
+            </div>
+            {frue.plugLog.slice(0, 4).map((entry) => (
+              <article key={entry.id} className="frue-log-row">
+                <label className="field">
+                  <span>Plug</span>
+                  <input
+                    value={entry.plug}
+                    onChange={(event) => setFrue((current) => ({
+                      ...current,
+                      plugLog: current.plugLog.map((row) => row.id === entry.id ? { ...row, plug: event.target.value } : row),
+                    }))}
+                  />
+                </label>
+                <label className="toggle-field">
+                  <input
+                    type="checkbox"
+                    checked={entry.slept}
+                    onChange={(event) => setFrue((current) => ({
+                      ...current,
+                      plugLog: current.plugLog.map((row) => row.id === entry.id ? { ...row, slept: event.target.checked } : row),
+                    }))}
+                  />
+                  Sov med
+                </label>
+                <label className="field">
+                  <span>Note</span>
+                  <input
+                    value={entry.note}
+                    placeholder="Behagelig / for stor / gled ud"
+                    onChange={(event) => setFrue((current) => ({
+                      ...current,
+                      plugLog: current.plugLog.map((row) => row.id === entry.id ? { ...row, note: event.target.value } : row),
+                    }))}
+                  />
+                </label>
+                <div className="row">
+                  {!entry.endedAt && (
+                    <button type="button" onClick={() => setFrue((current) => ({
+                      ...current,
+                      plugLog: current.plugLog.map((row) => row.id === entry.id ? { ...row, endedAt: new Date().toISOString() } : row),
+                    }))}>Afslut</button>
+                  )}
+                  <button type="button" className="danger" onClick={() => setFrue((current) => ({
+                    ...current,
+                    plugLog: current.plugLog.filter((row) => row.id !== entry.id),
+                  }))}>Slet</button>
+                  <small className="hint">{entry.endedAt ? 'Afsluttet' : 'Aktiv'}</small>
+                </div>
+              </article>
+            ))}
+            <p className="hint">Dagbogen gemmes kun lokalt og er ikke medicinsk rådgivning.</p>
           </div>
         </details>
 
@@ -3308,7 +3485,7 @@ export default function App() {
                   return
                 }
                 const error = await subscribeStayPush({
-                  explicit: profile.notificationStyle === 'explicit',
+                  explicit: profile.notificationStyle === 'explicit' && !frue.workMode && frue.status.place !== 'work',
                   partnerTitle: partnerDisplayName(profile),
                   plan: taskPlan,
                   taskBank,
@@ -3356,6 +3533,7 @@ export default function App() {
           </div>
           <div className="active-task-actions">
             <button type="button" disabled={aiThinking} onClick={() => void completeTask()}>Opgave udført</button>
+            <button type="button" className="task-not-completed" disabled={aiThinking} onClick={() => void failTask()}>Ikke fuldført</button>
             <button type="button" disabled={aiThinking} onClick={() => taskPhotoRef.current?.click()}>Send foto</button>
             <button type="button" className="ghost" onClick={() => setActiveTask('')}>Skjul</button>
           </div>
@@ -3487,6 +3665,75 @@ export default function App() {
       </div>
 
       <div className="chat-bottom">
+        <details className="session-more status-strip">
+          <summary>Status · {frue.status.arousal}/10 · {frue.status.place === 'work' ? 'Arbejde' : frue.status.place === 'others' ? 'Andre nær' : 'Alene'}</summary>
+          <span className="hint">{statusLine(frue.status)} · lås {frue.lock}{daysSinceOrgasm(frue.lastOrgasmAt) ? ` · ${daysSinceOrgasm(frue.lastOrgasmAt)} dage` : ''}</span>
+          <div className="row" aria-label="Tændingsniveau">
+            {[1, 3, 5, 8, 10].map((level) => (
+              <button
+                key={level}
+                type="button"
+                className={frue.status.arousal === level ? 'chip on' : 'chip'}
+                onClick={() => {
+                  setFrue((current) => ({ ...current, status: { ...current.status, arousal: level } }))
+                  void sendAiRequest(`Status: tændt ${level}/10.`, 'chat', `Tændt ${level}`)
+                }}
+              >{level}</button>
+            ))}
+          </div>
+          <div className="row">
+            <button
+              type="button"
+              className={frue.status.plug ? 'chip on' : 'chip'}
+              onClick={() => setFrue((current) => ({ ...current, status: { ...current.status, plug: !current.status.plug } }))}
+            >{frue.status.plug ? 'Plug i' : 'Ingen plug'}</button>
+            {(['none', 'little', 'lots'] as const).map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={frue.status.precum === id ? 'chip on' : 'chip'}
+                onClick={() => setFrue((current) => ({ ...current, status: { ...current.status, precum: id } }))}
+              >{id === 'none' ? 'Intet precum' : id === 'little' ? 'Lidt' : 'Meget'}</button>
+            ))}
+          </div>
+          <div className="row">
+            {([['alone', 'Alene'], ['work', 'Arbejde'], ['others', 'Andre nær']] as const).map(([id, title]) => (
+              <button
+                key={id}
+                type="button"
+                className={frue.status.place === id ? 'chip on' : 'chip'}
+                onClick={() => setFrue((current) => ({
+                  ...current,
+                  workMode: id === 'work' ? true : current.workMode,
+                  status: { ...current.status, place: id },
+                }))}
+              >{title}</button>
+            ))}
+            <label className="status-estim-field">
+              <span>E-stim</span>
+              <input
+                value={frue.status.estim}
+                maxLength={8}
+                onChange={(event) => setFrue((current) => ({ ...current, status: { ...current.status, estim: event.target.value } }))}
+              />
+            </label>
+          </div>
+          {frue.dayPlan.some((block) => block.accepted) && (
+            <div className="row" aria-label="Heldagsplan">
+              {frue.dayPlan.filter((block) => block.accepted).map((block) => (
+                <button
+                  key={block.id}
+                  type="button"
+                  className={block.done ? 'chip on' : 'chip'}
+                  onClick={() => setFrue((current) => ({
+                    ...current,
+                    dayPlan: current.dayPlan.map((row) => row.id === block.id ? { ...row, done: !row.done } : row),
+                  }))}
+                >{block.done ? '✓ ' : ''}{block.title}</button>
+              ))}
+            </div>
+          )}
+        </details>
         <div className="chat-primary-actions">
           <button
             type="button"

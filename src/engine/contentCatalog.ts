@@ -3,7 +3,7 @@ import type { PlanId } from './plans'
 import { getFirebaseDb } from './firebase'
 import { DEFAULT_TASK_BANK, TASK_CATEGORIES } from './sessionStore'
 
-const CATALOG_VERSION = 6
+const CATALOG_VERSION = 7
 
 export interface ContentOption {
   id: string
@@ -117,6 +117,18 @@ const equipmentSeeds: EquipmentSeed[] = [
   ['kneepads', 'Knæbeskyttere', 'Pet og worship', 'plus'],
   ['bowl', 'Skål', 'Pet og worship', 'plus', 'voksen petplay uden barnesprog'],
   ['worship_pillow', 'Knælepude', 'Pet og worship', 'plus'],
+  ['winged_plug', 'Vinget plug', 'Dildo og røv', 'solo', 'vinget plug til hverdag under tøj; stop ved smerte'],
+  ['inflatable_plug', 'Oppustelig plug', 'Dildo og røv', 'plus', 'oppustelig plug som færdigt legetøj'],
+  ['tunnel_plug', 'Tunnel-plug', 'Dildo og røv', 'plus'],
+  ['string_harness', 'Snor-sele', 'Bondage light', 'plus'],
+  ['stayups', 'Stay-ups', 'Lingeri', 'solo'],
+  ['bodystocking', 'Bodystocking', 'Lingeri', 'plus'],
+  ['lace_panties', 'Blonde-trusser', 'Lingeri', 'solo'],
+  ['tie_panties', 'Snøre-trusser', 'Lingeri', 'plus'],
+  ['nightgown', 'Natkjole', 'Lingeri', 'solo'],
+  ['silicone_breasts', 'Silikonebryster', 'Lingeri', 'plus'],
+  ['breast_clamps_estim', 'Brystklemmer e-stim', 'Patter og hud', 'plus', 'færdigt e-stim til brystvorter; aldrig DIY'],
+  ['precum_condom', 'Precum-kondom', 'Krop og sikring', 'solo', 'kondom til at samle precum; sluge kun efter tilladelse'],
 ]
 
 const equipment = equipmentSeeds.map(([id, title, group, minimumPlan, prompt], order): ContentOption => ({
@@ -248,6 +260,35 @@ const defaultWords: ContentOption[] = [
   ['bur', 'kyskhed i legen'],
   ['protocol', 'knæ, titel, vent'],
   ['brat', 'fræk mund der testes'],
+  ['frue', 'titel Frue'],
+  ['ja frue', 'svar ja Frue'],
+  ['javel', 'kort lydighed'],
+  ['precum', 'pre-cum / forskum'],
+  ['dryp', 'drypper'],
+  ['kondomfyld', 'det der er i kondomet'],
+  ['slug', 'sluge kun efter lov'],
+  ['vinget plug', 'plug med vinger'],
+  ['snor', 'snor i sele'],
+  ['reverse kegel', 'skub blidt ud'],
+  ['kegel', 'knib'],
+  ['åben røv', 'åben røv i legen'],
+  ['fyldt', 'fyldt af plug'],
+  ['e-stim', 'færdigt e-stim-legetøj'],
+  ['pads', 'e-stim pads'],
+  ['brystklemmer', 'klemmer på vorter'],
+  ['selvsiddende', 'bliver siddende under tøj'],
+  ['snøre-trusser', 'trusser med snøre'],
+  ['silikonebryster', 'silikonebryster'],
+  ['stuepige', 'voksen stuepige'],
+  ['pligter', 'små pligter'],
+  ['under tøjet', 'under arbejdstøj'],
+  ['kolleger', 'andre på arbejde — diskret'],
+  ['strap', 'strap-on'],
+  ['tæt på', 'lige før orgasme'],
+  ['ikke endnu', 'ingen udløsning endnu'],
+  ['jeg er våd', 'Fruen beskriver sin fisse'],
+  ['jeg knalder mig selv', 'Fruen leger med sig selv'],
+  ['mine vorter er stive', 'Fruens brystvorter'],
 ].map(([title, prompt], order): ContentOption => ({
   id: title.replace(/[^a-zA-Z0-9æøåÆØÅ_-]+/g, '-').slice(0, 40) || `ord-${order}`,
   order, title, prompt, blurb: '', group: 'Dansk', enabled: true, free: true, minimumPlan: 'free',
@@ -269,6 +310,13 @@ const defaultWordsMinus: ContentOption[] = [
   ['hore', 'kun ved humiliation'],
   ['barnligt', 'aldrig barnligt sprog'],
   ['skolebarn', 'forbudt'],
+  ['teen', 'forbudt'],
+  ['ung pige', 'forbudt'],
+  ['kvæl', 'ingen kvælnings-how-to'],
+  ['DIY-strøm', 'ingen hjemmelavet strøm'],
+  ['stikkontakt', 'ingen strøm-guide'],
+  ['baby', 'forbudt'],
+  ['little girl', 'forbudt'],
 ].map(([title, prompt], order): ContentOption => ({
   id: `minus-${title}`,
   order, title, prompt, blurb: '', group: 'Minus', enabled: true, free: true, minimumPlan: 'free',

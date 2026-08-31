@@ -2,6 +2,25 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 31. august 2026 — Frue-pakke og “Ikke fuldført”
+
+- Frue-status i chatten: tænding, plug, e-stim, precum og sted.
+- Udløsningslås med fri, nægtet, antal edges eller efter accepterede opgaver.
+- Lokal plug-dagbog med start, afslutning, note, “sov med” og sletning.
+- Arbejds-mode tvinger diskrete Web Push-beskeder og diskret AI-adfærd.
+- Valgfri heldagsplan med morgen, middag, eftermiddag og aften.
+- Plus-scenerne kan beskrive AI-partnerens egen lyst inden for valgte temaer og grænser.
+- Nyt Frue-udstyr samt nye plus- og minusord er føjet til indholdskatalog version 7.
+- Aktuelle opgaver har nu **Ikke fuldført**, og knapperne står 2 × 2 på små mobiler.
+- Alle nyere billed-, opgave-, admin- og kompakte mobilrettelser er bevaret.
+
+## 31. august 2026 — Kompakt admin på mobil
+
+- Admin-overblikket bruger nu én kompakt række med fire nøgletal på mobilen.
+- Topområde, menuknap og informationskort fylder mindre uden at ændre desktopvisningen.
+- iPhone kan ikke længere automatisk forstørre adminteksten og gøre kortene unødigt høje.
+- App-cachen er opdateret, så den nye mobilvisning hentes efter genindlæsning.
+
 ## 31. august 2026 — Vision-fix og centrale admin-opgaver
 
 - Billedanalyse bruger nu altid visionmodellen `mistral-31-24b`; den almindelige

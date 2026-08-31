@@ -288,6 +288,40 @@ h2 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
 }
 .setup-fold-content { padding: 0.3rem 1rem 1rem; }
 .setup-fold-content .field:last-child { margin-bottom: 0; }
+.frue-settings h3 { margin: 1rem 0 0.45rem; }
+.frue-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.frue-section-heading h3 { margin: 0; }
+.frue-section-heading button,
+.frue-log-row button {
+  min-height: 2.15rem;
+  padding: 0.42rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #241815;
+  color: var(--accent-2);
+  font: 700 0.68rem system-ui, sans-serif;
+  cursor: pointer;
+}
+.frue-log-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: rgba(18, 13, 12, 0.55);
+}
+.frue-log-row .field:nth-of-type(3),
+.frue-log-row > .row { grid-column: 1 / -1; }
+.frue-log-row .field { margin: 0; }
+.frue-log-row .hint { align-self: center; margin: 0; }
 .task-plan-grid { display: grid; gap: 0.2rem; }
 .task-plan-grid .field { margin: 0.65rem 0 0; }
 .task-mode { margin: 0.65rem 0 0; padding: 0; border: 0; background: transparent; }
@@ -797,6 +831,10 @@ button.partner-portrait:disabled { cursor: default; }
   cursor: pointer;
 }
 .active-task-actions button:disabled { opacity: 0.55; }
+.active-task-actions .task-not-completed {
+  border-color: rgba(232, 140, 120, 0.65);
+  color: #efb6aa;
+}
 
 .task-text-editor {
   grid-column: 1 / -1;
@@ -848,7 +886,7 @@ button.partner-portrait:disabled { cursor: default; }
 
 @media (max-width: 28rem) {
   .active-task-card { grid-template-columns: 1fr; }
-  .active-task-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .active-task-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .note-button {
   border: 1px solid var(--line);
@@ -1295,6 +1333,45 @@ button.partner-portrait:disabled { cursor: default; }
   font: 0.62rem/1.3 system-ui, sans-serif;
   text-align: center;
 }
+.status-strip[open] {
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: rgba(23, 17, 15, 0.98);
+}
+.status-strip[open] summary { margin-bottom: 0.35rem; }
+.status-strip .row {
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.32rem;
+}
+.status-strip .chip {
+  min-height: 1.9rem;
+  padding: 0.28rem 0.55rem;
+  font: 700 0.62rem system-ui, sans-serif;
+}
+.status-estim-field {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font: 700 0.62rem system-ui, sans-serif;
+}
+.status-estim-field input {
+  width: 3.6rem;
+  min-height: 1.9rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+@media (max-width: 28rem) {
+  .frue-log-row { grid-template-columns: 1fr; }
+  .frue-log-row .field:nth-of-type(3),
+  .frue-log-row > .row { grid-column: 1; }
+}
 
 .composer {
   display: grid;
@@ -1536,9 +1613,73 @@ table.admin th { color: var(--muted); font-weight: 500; }
   .fetish-editor { grid-template-columns: 1fr; }
   .catalog-prompt-field,
   .catalog-id { grid-column: 1; }
-  .admin-topbar { gap: 0.75rem; }
-  .admin-topbar h1 { font-size: 1.65rem; }
+  .shell-wide.admin-shell {
+    min-height: 100dvh;
+    padding: max(0.7rem, env(safe-area-inset-top)) 0.75rem max(1.25rem, env(safe-area-inset-bottom));
+  }
+  .admin-topbar {
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+  }
+  .admin-topbar > div { min-width: 0; }
+  .admin-topbar .kicker {
+    margin-bottom: 0.12rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+  }
+  .admin-topbar h1 {
+    margin: 0;
+    font-size: clamp(1.45rem, 7vw, 1.85rem);
+    line-height: 1;
+  }
   .admin-topbar .hint { display: none; }
+  .admin-menu-toggle {
+    min-height: 2.55rem;
+    margin-top: 0;
+    padding: 0.52rem 0.68rem;
+    border-radius: 0.7rem;
+    gap: 0.38rem;
+    font-size: 0.72rem;
+  }
+  .admin-menu-toggle span { font-size: 1rem; }
+  .admin-shell .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.38rem;
+    margin-bottom: 0.65rem;
+  }
+  .admin-shell .stat {
+    min-width: 0;
+    padding: 0.55rem 0.35rem;
+    border-radius: 0.65rem;
+    overflow: hidden;
+    color: var(--muted);
+    font: 600 0.6rem/1.2 system-ui, sans-serif;
+    text-align: center;
+  }
+  .admin-shell .stat b {
+    margin-bottom: 0.16rem;
+    overflow: hidden;
+    color: var(--ink);
+    font-size: clamp(0.84rem, 4vw, 1.05rem);
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .admin-summary-card {
+    margin-top: 0;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+  }
+  .admin-summary-card h2 {
+    margin: 0 0 0.3rem;
+    font-size: 1rem;
+  }
+  .admin-summary-card .lede,
+  .admin-summary-card .hint {
+    margin: 0.3rem 0 0;
+    font: 0.72rem/1.4 system-ui, sans-serif;
+  }
   .admin-settings-grid { grid-template-columns: 1fr; }
 }
 

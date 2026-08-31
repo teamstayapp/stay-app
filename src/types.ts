@@ -118,6 +118,9 @@ export interface Profile {
   extraPacks: boolean
   lingerieUser: string[]
   lingeriePartner: string[]
+  liveStatusText?: string
+  workMode?: boolean
+  orgasmLockText?: string
 }
 
 export interface Line {

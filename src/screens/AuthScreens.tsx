@@ -581,7 +581,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
             <div className="stat"><b>{mrr} kr</b>MRR mock</div>
             <div className="stat"><b>{list.length}</b>konti</div>
           </div>
-          <section className="sheet">
+          <section className="sheet admin-summary-card">
             <h2>Afgang</h2>
             <p className="lede">
               Opsagt er et aktivt stop. Churn er udebleven fornyelse. Senere fyldes det fra betalings-webhook.
