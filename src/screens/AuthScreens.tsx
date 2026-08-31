@@ -13,7 +13,7 @@ import {
 } from '../engine/auth'
 import { firebaseReady } from '../engine/firebase'
 import { PLANS, type PlanId } from '../engine/plans'
-import { AI_MODELS, DEFAULT_SCENES, IMAGE_MODELS, observeScenes, publishScenes } from '../engine/scenes'
+import { AI_MODELS, DEFAULT_SCENES, IMAGE_MODELS, VISION_MODELS, observeScenes, publishScenes } from '../engine/scenes'
 import {
   DEFAULT_CONTENT_CATALOG,
   newContentOption,
@@ -216,6 +216,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
   const [contentCatalog, setContentCatalog] = useState<ContentCatalog>(DEFAULT_CONTENT_CATALOG)
   const [contentNotice, setContentNotice] = useState('')
   const [contentSaving, setContentSaving] = useState(false)
+  const [wordQuery, setWordQuery] = useState('')
   const [customers, setCustomers] = useState<CustomerAccount[]>([])
   const [customerNotice, setCustomerNotice] = useState('')
   const localCustomers: CustomerAccount[] = loadAccounts().map((account) => ({
@@ -335,7 +336,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
   }
 
   function updateContentOption(
-    kind: 'equipment' | 'fetishes',
+    kind: 'equipment' | 'fetishes' | 'words' | 'wordsMinus',
     id: string,
     patch: Partial<ContentOption>,
   ) {
@@ -346,18 +347,18 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
     }))
   }
 
-  function addContentOption(kind: 'equipment' | 'fetishes') {
+  function addContentOption(kind: 'equipment' | 'fetishes' | 'words' | 'wordsMinus') {
     setContentNotice('')
     setContentCatalog((current) => ({
       ...current,
       [kind]: [
         ...current[kind],
-        newContentOption(kind === 'equipment' ? 'equipment' : 'fetish', current[kind].length),
+        newContentOption(kind === 'equipment' ? 'equipment' : kind === 'words' || kind === 'wordsMinus' ? 'word' : 'fetish', current[kind].length),
       ],
     }))
   }
 
-  function removeContentOption(kind: 'equipment' | 'fetishes', id: string) {
+  function removeContentOption(kind: 'equipment' | 'fetishes' | 'words' | 'wordsMinus', id: string) {
     const item = contentCatalog[kind].find((option) => option.id === id)
     if (!item || !window.confirm(`Slet “${item.title}”? Ændringen gælder først, når du gemmer.`)) return
     setContentNotice('')
@@ -724,6 +725,14 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                   ))}
                 </select>
               </label>
+              <label className="field">
+                Billedanalyse
+                <select value={selectedScene.visionModel || 'mistral-31-24b'} onChange={(e) => updateSelected({ visionModel: e.target.value })}>
+                  {VISION_MODELS.map((model) => (
+                    <option key={model.id} value={model.id}>{model.title}</option>
+                  ))}
+                </select>
+              </label>
               <details className="prompt-layer" open>
                 <summary>Blød / SFW — alle planer</summary>
                 <label className="field">
@@ -871,6 +880,77 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
             {contentNotice && <p className="form-message success">{contentNotice}</p>}
           </div>
 
+          <details className="sheet catalog-fold lexicon-pack">
+            <summary className="catalog-heading">
+              <div>
+                <p className="kicker">Kun admin</p>
+                <h2>Ordbog</h2>
+                <small>{(contentCatalog.words?.length || 0) + (contentCatalog.wordsMinus?.length || 0)} ord · lukket til du trykker</small>
+              </div>
+            </summary>
+            <p className="hint">Brugere ser ikke listerne. Chatten får kun de aktive ord efter “Gem og udgiv”.</p>
+            <label className="field">
+              Søg i listerne
+              <input value={wordQuery} placeholder="pik, kuk, edge…" onChange={(e) => setWordQuery(e.target.value)} />
+            </label>
+            <details className="catalog-fold inner-fold">
+              <summary className="catalog-heading">
+                <div>
+                  <h2>Frække ord</h2>
+                  <small>{contentCatalog.words?.length || 0} plus</small>
+                </div>
+                <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('words') }}>+ Tilføj ord</button>
+              </summary>
+              <div className="catalog-list catalog-list-words">
+                {(contentCatalog.words || []).filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
+                  <article className="catalog-row word-row" key={item.id}>
+                    <label className="field">
+                      Ord
+                      <input value={item.title} maxLength={40} onChange={(e) => updateContentOption('words', item.id, { title: e.target.value })} />
+                    </label>
+                    <label className="field">
+                      Betydning
+                      <input value={item.prompt} maxLength={160} onChange={(e) => updateContentOption('words', item.id, { prompt: e.target.value })} />
+                    </label>
+                    <label className="toggle-field">
+                      <input type="checkbox" checked={item.enabled} onChange={(e) => updateContentOption('words', item.id, { enabled: e.target.checked })} />
+                      Aktiv
+                    </label>
+                    <button className="safe" onClick={() => removeContentOption('words', item.id)}>Slet</button>
+                  </article>
+                ))}
+              </div>
+            </details>
+            <details className="catalog-fold inner-fold">
+              <summary className="catalog-heading">
+                <div>
+                  <h2>Brug ikke</h2>
+                  <small>{contentCatalog.wordsMinus?.length || 0} minus</small>
+                </div>
+                <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('wordsMinus') }}>+ Tilføj forbud</button>
+              </summary>
+              <div className="catalog-list catalog-list-words">
+                {(contentCatalog.wordsMinus || []).filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
+                  <article className="catalog-row word-row" key={item.id}>
+                    <label className="field">
+                      Ord
+                      <input value={item.title} maxLength={40} onChange={(e) => updateContentOption('wordsMinus', item.id, { title: e.target.value })} />
+                    </label>
+                    <label className="field">
+                      Erstat med
+                      <input value={item.prompt} maxLength={160} onChange={(e) => updateContentOption('wordsMinus', item.id, { prompt: e.target.value })} />
+                    </label>
+                    <label className="toggle-field">
+                      <input type="checkbox" checked={item.enabled} onChange={(e) => updateContentOption('wordsMinus', item.id, { enabled: e.target.checked })} />
+                      Aktiv
+                    </label>
+                    <button className="safe" onClick={() => removeContentOption('wordsMinus', item.id)}>Slet</button>
+                  </article>
+                ))}
+              </div>
+            </details>
+          </details>
+
           <details className="sheet catalog-fold">
             <summary className="catalog-heading">
               <div>
@@ -878,7 +958,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 <h2>Udstyr</h2>
                 <small>{contentCatalog.equipment.length} felter · tryk for at åbne</small>
               </div>
-              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('equipment') }}>+ Tilføj udstyr</button>
+              <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('equipment') }}>+ Tilføj udstyr</button>
             </summary>
             <div className="catalog-list">
               {contentCatalog.equipment.map((item) => (
@@ -944,7 +1024,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 <h2>Temaer / fetish</h2>
                 <small>{contentCatalog.fetishes.length} felter · tryk for at åbne</small>
               </div>
-              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('fetishes') }}>+ Tilføj tema</button>
+              <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('fetishes') }}>+ Tilføj tema</button>
             </summary>
             <div className="catalog-list">
               {contentCatalog.fetishes.map((item) => (
