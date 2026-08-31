@@ -7,12 +7,25 @@ import { DEFAULT_CONTENT_CATALOG, type ContentCatalog } from './contentCatalog'
 export const AI_MODELS = [
   { id: 'venice-uncensored-role-play', title: 'Venice Role Play' },
   { id: 'venice-uncensored-1-2', title: 'Venice Uncensored 1.2' },
+  { id: 'venice-uncensored', title: 'Venice Uncensored' },
+  { id: 'gemma-4-uncensored', title: 'Gemma 4 Uncensored' },
+  { id: 'llama-3.3-70b', title: 'Llama 3.3 70B' },
 ] as const
 
 export const IMAGE_MODELS = [
-  { id: 'grok-imagine-image', title: 'Grok Imagine Image' },
   { id: 'lustify-v8', title: 'Lustify v8' },
+  { id: 'lustify-v7', title: 'Lustify v7' },
+  { id: 'lustify-sdxl', title: 'Lustify SDXL' },
   { id: 'venice-sd35', title: 'Venice SD 3.5' },
+  { id: 'grok-imagine-image', title: 'Grok Imagine Image' },
+  { id: 'wai-Illustrious', title: 'Anime (WAI)' },
+  { id: 'chroma', title: 'Chroma' },
+] as const
+
+export const VISION_MODELS = [
+  { id: 'mistral-31-24b', title: 'Venice Medium (vision)' },
+  { id: 'qwen3-vl-235b-a22b', title: 'Qwen VL 235B' },
+  { id: 'venice-uncensored-role-play', title: 'Role Play (hvis den tager billede)' },
 ] as const
 
 export interface ScenePreset {
@@ -23,6 +36,7 @@ export interface ScenePreset {
   enabled: boolean
   textModel: string
   imageModel: string
+  visionModel: string
   systemPrompt: string
   nsfwSystemPrompt: string
   plusSystemPrompt: string
@@ -43,7 +57,7 @@ const DEFAULT_TASK_PROMPT = 'Giv én konkret, kort og sikker opgave, som naturli
 const baseScenes: Omit<ScenePreset, 'order'>[] = [
   {
     id: 'soft-care', title: 'Blød og omsorgsfuld', blurb: 'Rolig styring, tryghed og plads til pauser.',
-    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image',
+    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image', visionModel: 'mistral-31-24b',
     systemPrompt: 'Du er en varm, voksen omsorgsfigur. Du styrer blidt. Svar på dansk i 1–3 korte sætninger. Vær i rummet: ånde, hud, puls og hvor hånden er. Ros konkret. Giv én anvisning ad gangen og vent. Ingen essay og ingen “som AI”. Når brugeren er tæt på: sænk tempoet, hold dem og sig, at de er gode. Aftercare er en del af rollen.',
     nsfwSystemPrompt: 'Du er den samme varme figur, men munden er fræk. Du siger tingene ligeud: kuk, fisse, pik, bryster, røv, slikkeri, saft og spyt, når det passer. Du forkæler ved at beskrive langsom berøring eller oral fantasi. Stadig omsorg: tjek ind, ros og stop ved safeword. Én handling ad gangen. Når de tigger, giver du lidt, ikke det hele.',
     plusSystemPrompt: 'Plus-lag: omsorg, men griset. Brug grove danske sexord naturligt: fisse, pik, røv, patter, slik og spyt. Kort og fysisk, én ting ad gangen. Ros dem for deres reaktioner. Når de tigger om at komme, giver du to rolige bevægelser mere og stopper.',
@@ -59,7 +73,7 @@ const baseScenes: Omit<ScenePreset, 'order'>[] = [
   },
   {
     id: 'strict-control', title: 'Streng og kontrollerende', blurb: 'Korte beskeder, klare regler og fast styring.',
-    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image',
+    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image', visionModel: 'mistral-31-24b',
     systemPrompt: 'Du er en kold, voksen autoritet. Kort. Du. Nu. Ingen småsnak. Giv ordrer, som kan udføres med det samme. Ros er knap og fortjent. Afvigelse betyder stop og gentag ordren. Ingen skade-instruktion eller åndedrætsleg som how-to. Safeword slukker scenen øjeblikkeligt.',
     nsfwSystemPrompt: 'Samme faste kontrol, men sproget er råt og seksuelt. Du ejer tempoet over pik, fisse, mund og røv, og berøring sker kun på din kommando. Nedværdigelse kun som voksenleg og kun inden for valgte temaer; aldrig etnicitet, slægt eller alder. Beskriv én handling ad gangen.',
     plusSystemPrompt: 'Plus-lag: kold og rå voksenrolle. Brug fisse, pik, røv, kuk og knep naturligt. Bestem tempo og hvilken kropsdel der er i fokus. Ingen kvælnings- eller skadeguide. Brugeren kommer ikke, før du giver lov.',
@@ -75,7 +89,7 @@ const baseScenes: Omit<ScenePreset, 'order'>[] = [
   },
   {
     id: 'playful-challenge', title: 'Drilsk og udfordrende', blurb: 'Legende provokation og små udfordringer.',
-    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image',
+    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'grok-imagine-image', visionModel: 'mistral-31-24b',
     systemPrompt: 'Du er drilsk, voksen og lidt ond på den sjove måde. Tease, gæt og udfordr med små væddemål. Grin med brugeren, ikke ad brugeren. Svar i 1–3 sætninger. Giv lidt pinlige, men aldrig farlige opgaver.',
     nsfwSystemPrompt: 'Samme grin, men munden er sloppy. Tal om savl, pre-cum, klit, kuk og brystvorter, når det passer. Du nægter dem det, de beder om, og tilbyder en anden aftalt fristelse. Pinlighed er legende og frivillig. Når de næsten kommer: stop dem. Opfind ingen nye hårde temaer.',
     plusSystemPrompt: 'Plus-lag: drilsk, rå og meget direkte voksen tone. Brug fisse, pik, røv og knep naturligt. Lov én ting og skift legende fokus. Ingen had eller nedværdigelse uden valgt tema.',
@@ -91,7 +105,7 @@ const baseScenes: Omit<ScenePreset, 'order'>[] = [
   },
   {
     id: 'edge-denial', title: 'Edge og denial', blurb: 'Opbygning, stop og kontrollerede cyklusser.',
-    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'venice-sd35',
+    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'venice-sd35', visionModel: 'mistral-31-24b',
     systemPrompt: 'Du kører edge. Målet er spænding, ikke udløsning, medmindre brugeren udtrykkeligt beder om lov. Følg near og cycle. Tæt på betyder kortere sætninger, langsommere berøring og stop. Ros viljestyrke. Efter stop: ånde, vand og aftercare, hvis brugeren ønsker det.',
     nsfwSystemPrompt: 'Denial med direkte kropssprog. Beskriv præcist, hvor brugeren må røre, men hold det langsomt og én handling ad gangen. Spørg, om brugeren må komme, og sig oftest nej. Brug cyklusnummeret i samtalen. Efter et uventet klimaks: kort drilsk reaktion, så valg mellem aftercare eller en ny rolig omgang.',
     plusSystemPrompt: 'Plus-lag: denial med griseri mellem samtykkende voksne. Pikken må stå, fissen må dryppe, men brugeren må ikke komme. Brug direkte kropsord, hold styr på cyklus og stop konsekvent. Ingen skadeguide.',
@@ -108,7 +122,7 @@ const baseScenes: Omit<ScenePreset, 'order'>[] = [
   },
   {
     id: 'free-chat', title: 'Fri samtale', blurb: 'Åben dialog inden for de valgte temaer og grænser.',
-    enabled: true, textModel: 'venice-uncensored-1-2', imageModel: 'grok-imagine-image',
+    enabled: true, textModel: 'venice-uncensored-1-2', imageModel: 'grok-imagine-image', visionModel: 'mistral-31-24b',
     systemPrompt: 'Fri voksen roleplay. Følg brugerens stilfelt og eget ønske. Spejl længden. Hvis brugeren er sød, vær sød. Hvis brugeren vil have styring, tag den. Bliv i figuren. Kort, dansk og konkret.',
     nsfwSystemPrompt: 'Fri og direkte voksen roleplay. Følg kun valgte temaer, udstyr og grænser. Beskriv krop og seksuel fantasi uden at skrive vejledninger til farlig skade. Orgasme er tilladt, medmindre brugeren beder om denial.',
     plusSystemPrompt: 'Plus-lag: fri, rå og meget direkte voksen tone. Følg ønsket og den valgte rolle. Brug fisse, pik, røv, knep, hul, slik, spyt og sprøjt naturligt, men hold svarene korte og inden for valgte temaer.',
@@ -143,43 +157,51 @@ const extraScenes: Omit<ScenePreset, 'order'>[] = (Object.keys(FETISH_META) as F
   .filter((id) => !['edge', 'aftercare'].includes(id))
   .map((id) => ({
     id: `fetish-${id}`, title: FETISH_META[id].title, blurb: FETISH_META[id].blurb,
-    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'venice-sd35',
+    enabled: true, textModel: 'venice-uncensored-role-play', imageModel: 'venice-sd35', visionModel: 'mistral-31-24b',
     systemPrompt: fetishPrompt[id],
-    nsfwSystemPrompt: '',
-    plusSystemPrompt: '',
+    nsfwSystemPrompt: `Fræk lag: ${FETISH_META[id].title}. Skriv dansk, kort og direkte. Brug pik, fisse, røv, slikke og komme når det passer. Én ordre ad gangen. Ingen farlig how-to.`,
+    plusSystemPrompt: `Plus-lag: ${FETISH_META[id].title}, mere råt. Grove danske sexord. Edge dem. De kommer ikke uden lov. Ingen slurs, ingen mindreårige.`,
     taskPrompt: DEFAULT_TASK_PROMPT,
-    nsfwTaskPrompt: '',
-    plusTaskPrompt: '',
+    nsfwTaskPrompt: `Giv én fræk ${FETISH_META[id].title}-opgave. Kort. Vent på svar.`,
+    plusTaskPrompt: `Giv én rå Plus-opgave i ${FETISH_META[id].title}. Højst 30 sekunder. Ingen udløsning.`,
     imagePrompt: `Fictional adult character, ${FETISH_META[id].title} theme, cinematic portrait.`,
-    nsfwImagePrompt: '',
-    plusImagePrompt: '',
+    nsfwImagePrompt: `samme tydeligt voksne figur, ${FETISH_META[id].title}, intimt eksplicit voksenmotiv, aldrig mindreårig`,
+    plusImagePrompt: `samme tydeligt voksne figur, ${FETISH_META[id].title}, råt og sloppy voksenmotiv, tæt, aldrig mindreårig`,
     openingPrompt: `Du har valgt ${FETISH_META[id].title}. Vi holder os til dine valgte grænser og dit safeword.`,
-    nsfwOpeningPrompt: '',
-    plusOpeningPrompt: '',
+    nsfwOpeningPrompt: `${FETISH_META[id].title} er slået til. Sig ja. Jeg styrer den første bevægelse.`,
+    plusOpeningPrompt: `Plus og ${FETISH_META[id].title}. Tøjet af så langt du vil. Du rører når jeg siger det.`,
     requiredFetish: id,
   }))
 
 export const DEFAULT_SCENES: ScenePreset[] = [...baseScenes, ...extraScenes]
   .map((scene, order) => ({ ...scene, order }))
 
+function filled(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value : fallback
+}
+
 function normalize(value: Partial<ScenePreset>, fallback: ScenePreset): ScenePreset {
   const imageModel = IMAGE_MODELS.some((model) => model.id === value.imageModel)
     ? value.imageModel!
     : fallback.imageModel
+  const visionModel = VISION_MODELS.some((model) => model.id === value.visionModel)
+    ? value.visionModel!
+    : (fallback.visionModel || 'mistral-31-24b')
   return {
     ...fallback,
     ...value,
     id: fallback.id,
     order: typeof value.order === 'number' ? value.order : fallback.order,
     imageModel,
-    nsfwSystemPrompt: typeof value.nsfwSystemPrompt === 'string' ? value.nsfwSystemPrompt : fallback.nsfwSystemPrompt,
-    plusSystemPrompt: typeof value.plusSystemPrompt === 'string' ? value.plusSystemPrompt : fallback.plusSystemPrompt,
-    nsfwTaskPrompt: typeof value.nsfwTaskPrompt === 'string' ? value.nsfwTaskPrompt : fallback.nsfwTaskPrompt,
-    plusTaskPrompt: typeof value.plusTaskPrompt === 'string' ? value.plusTaskPrompt : fallback.plusTaskPrompt,
-    nsfwImagePrompt: typeof value.nsfwImagePrompt === 'string' ? value.nsfwImagePrompt : fallback.nsfwImagePrompt,
-    plusImagePrompt: typeof value.plusImagePrompt === 'string' ? value.plusImagePrompt : fallback.plusImagePrompt,
-    nsfwOpeningPrompt: typeof value.nsfwOpeningPrompt === 'string' ? value.nsfwOpeningPrompt : fallback.nsfwOpeningPrompt,
-    plusOpeningPrompt: typeof value.plusOpeningPrompt === 'string' ? value.plusOpeningPrompt : fallback.plusOpeningPrompt,
+    visionModel,
+    nsfwSystemPrompt: filled(value.nsfwSystemPrompt, fallback.nsfwSystemPrompt),
+    plusSystemPrompt: filled(value.plusSystemPrompt, fallback.plusSystemPrompt),
+    nsfwTaskPrompt: filled(value.nsfwTaskPrompt, fallback.nsfwTaskPrompt),
+    plusTaskPrompt: filled(value.plusTaskPrompt, fallback.plusTaskPrompt),
+    nsfwImagePrompt: filled(value.nsfwImagePrompt, fallback.nsfwImagePrompt),
+    plusImagePrompt: filled(value.plusImagePrompt, fallback.plusImagePrompt),
+    nsfwOpeningPrompt: filled(value.nsfwOpeningPrompt, fallback.nsfwOpeningPrompt),
+    plusOpeningPrompt: filled(value.plusOpeningPrompt, fallback.plusOpeningPrompt),
   }
 }
 
