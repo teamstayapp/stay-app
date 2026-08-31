@@ -1,5 +1,6 @@
 export type Role = 'domme' | 'slave'
 export type PlayMode = 'oneway' | 'mutual'
+export type CockPreset = 'none' | 'bbc' | 'bwc'
 export type Figure = 'master' | 'mistress'
 export type Look = 'clothed' | 'fetish' | 'nsfw'
 export type Body = 'slim' | 'athletic' | 'solid'
@@ -35,10 +36,11 @@ export type ProfessionId =
   | 'photographer'
   | 'pilot'
   | 'paramedic'
+  | 'schoolgirl'
   | 'milf'
 export type Personality = 'warm' | 'cold' | 'tease' | 'strict'
 export type Intensity = 'soft' | 'medium' | 'hard'
-export type Phase = 'age' | 'login' | 'admin' | 'rules' | 'home' | 'setup' | 'pay' | 'session' | 'aftercare' | 'decoy'
+export type Phase = 'age' | 'login' | 'admin' | 'rules' | 'setup' | 'pay' | 'session' | 'aftercare' | 'decoy'
 export type PrivacyMode = 'private' | 'device'
 export type NotificationStyle = 'discreet' | 'explicit'
 export type UserAnatomy = 'penis' | 'vulva'
@@ -59,7 +61,6 @@ export interface Limits {
 
 export interface Profile {
   chatName: string
-  partnerName: string
   partnerImageUrl?: string
   privacyMode: PrivacyMode
   notificationStyle: NotificationStyle
@@ -70,6 +71,8 @@ export interface Profile {
   userAnatomy: UserAnatomy
   userGender: UserGender
   attraction: Attraction
+  partnerAge: number
+  cockPreset: CockPreset
   likeWords: string
   banWords: string
   look: Look
@@ -103,6 +106,8 @@ export interface Profile {
   equipmentLabels?: string[]
   equipmentEntries?: Array<{ id: string; label: string }>
   catalogPrompt?: string
+  spicyLexicon?: string
+  spicyMinus?: string
   limits: Limits
   unlocked: FetishId[]
   plan: 'free' | 'solo' | 'plus'
