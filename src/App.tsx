@@ -234,6 +234,7 @@ const emptyProfile = (): Profile => ({
   userGender: 'unset',
   attraction: 'both',
   partnerAge: 28,
+  partnerName: '',
   cockPreset: 'none',
   likeWords: '',
   banWords: '',
@@ -728,6 +729,8 @@ export default function App() {
       userId: account.id,
       imageUrl: profile.partnerImageUrl,
       figure: profile.figure,
+      partnerName: profile.figure === 'mistress' ? 'Mistress' : 'Master',
+      poseImages: [profile.partnerImageUrl],
       savedAt: new Date().toISOString(),
     }
     try {
@@ -2387,6 +2390,7 @@ export default function App() {
       </header>
 
       {pushNotice && <p className="hint">{pushNotice}</p>}
+      {availableOn && <p className="hint">Opgaver tilbage i dag: {tasksLeft}</p>}
       <section className="heat-board" aria-label="Hvor tæt I er på at komme">
         <div className="heat-row">
           <span>{partnerName}</span>

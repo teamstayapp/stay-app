@@ -72,6 +72,7 @@ export interface Profile {
   userGender: UserGender
   attraction: Attraction
   partnerAge: number
+  partnerName: string
   cockPreset: CockPreset
   likeWords: string
   banWords: string
