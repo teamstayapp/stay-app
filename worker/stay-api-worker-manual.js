@@ -244,8 +244,11 @@ async function generateImage(req, env, body) {
     let usedModel = imageModel;
     let lastError = 'Billedmodellen svarede med et tomt eller beskadiget billede.';
     const fallbackModel = 'venice-sd35';
-    const modelAttempts = imageModel === fallbackModel ? [imageModel, imageModel] : [imageModel, fallbackModel];
-    for (const attemptedModel of modelAttempts) {
+    const modelAttempts = imageModel === fallbackModel
+        ? [{ model: imageModel, binary: true }, { model: imageModel, binary: false }]
+        : [{ model: imageModel, binary: true }, { model: fallbackModel, binary: false }];
+    for (const attempt of modelAttempts) {
+        const attemptedModel = attempt.model;
         const sizing = attemptedModel === 'grok-imagine-image'
             ? { aspect_ratio: '2:3', resolution: '1K' }
             : { width: 768, height: 1152 };
@@ -263,7 +266,8 @@ async function generateImage(req, env, body) {
                     prompt,
                     negative_prompt: 'close-up, headshot, cropped body, cropped feet, body out of frame, black image, blank image, silhouette, underexposed, blurry, duplicate person, extra people, malformed anatomy, text, logo, watermark, childlike features, age ambiguity',
                     format: 'webp',
-                    return_binary: true,
+                    return_binary: attempt.binary,
+                    variants: 1,
                     safe_mode: profile.nsfw !== true,
                     seed: randomImageSeed(),
                     enhance_prompt: false,
@@ -280,11 +284,11 @@ async function generateImage(req, env, body) {
             lastError = veniceImageError(data, venice.status);
             continue;
         }
-        const contentType = (venice.headers.get('content-type') || 'image/webp').split(';')[0].trim().toLowerCase();
-        const imageBytes = new Uint8Array(await venice.arrayBuffer());
-        if (contentType.startsWith('image/') && imageBytes.length >= 8_000) {
-            imageUrl = `data:${contentType};base64,${bytesToBase64(imageBytes)}`;
+        const parsedImage = await imageDataUrlFromResponse(venice);
+        if (parsedImage) {
+            imageUrl = parsedImage;
             usedModel = attemptedModel;
+            break;
         }
         else {
             lastError = 'Billedmodellen sendte ikke et gyldigt billede.';
@@ -344,12 +348,10 @@ async function generatePartnerPose(req, env, body) {
             error: plainText(message, `Venice-positurfejl (${venice.status})`, 200),
         }, 502);
     }
-    const bytes = new Uint8Array(await venice.arrayBuffer());
-    if (bytes.length < 10_000) {
+    const imageUrl = await imageDataUrlFromResponse(venice);
+    if (!imageUrl) {
         return json(req, env, { error: 'Billedmodellen svarede med et tomt eller beskadiget billede. Prøv igen.' }, 502);
     }
-    const mime = venice.headers.get('content-type')?.split(';')[0] || 'image/webp';
-    const imageUrl = `data:${mime.startsWith('image/') ? mime : 'image/webp'};base64,${bytesToBase64(bytes)}`;
     const recorded = await recordUsage(env, usageGate.gate, PARTNER_POSE_MODEL);
     if (!recorded)
         return json(req, env, { error: 'Billedet blev lavet, men forbruget kunne ikke registreres. Prøv igen.' }, 503);
@@ -546,6 +548,75 @@ function buildPartnerPosePrompt(profile, scene) {
         `Change the pose and composition to ${pose}.`,
         buildImagePrompt(profile, scene),
     ].join(' ');
+}
+async function imageDataUrlFromResponse(response) {
+    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const detectedMime = imageMimeFromBytes(bytes);
+    if ((contentType.startsWith('image/') || detectedMime) && bytes.length >= 8_000) {
+        return `data:${detectedMime || contentType};base64,${bytesToBase64(bytes)}`;
+    }
+    let data = null;
+    try {
+        data = JSON.parse(new TextDecoder().decode(bytes));
+    }
+    catch {
+        return '';
+    }
+    const candidates = [...(data.images || []), ...(data.data || [])];
+    for (const candidate of candidates) {
+        const value = typeof candidate === 'string'
+            ? candidate
+            : candidate.b64_json || candidate.url || '';
+        const normalized = await normalizeImageCandidate(value);
+        if (normalized)
+            return normalized;
+    }
+    return '';
+}
+async function normalizeImageCandidate(value) {
+    const candidate = value.trim();
+    if (/^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/=\s]+$/.test(candidate)) {
+        const compact = candidate.replace(/\s/g, '');
+        return compact.length >= 10_000 ? compact : '';
+    }
+    if (/^https:\/\//i.test(candidate)) {
+        try {
+            const response = await fetch(candidate, { signal: AbortSignal.timeout(30_000) });
+            if (!response.ok)
+                return '';
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            const mime = imageMimeFromBytes(bytes);
+            return mime && bytes.length >= 8_000 ? `data:${mime};base64,${bytesToBase64(bytes)}` : '';
+        }
+        catch {
+            return '';
+        }
+    }
+    const base64 = candidate.replace(/\s/g, '');
+    if (!/^[a-zA-Z0-9+/]+={0,2}$/.test(base64) || base64.length < 10_000)
+        return '';
+    try {
+        const prefix = atob(base64.slice(0, Math.min(base64.length, 32)).padEnd(32, '='));
+        const bytes = Uint8Array.from(prefix, (character) => character.charCodeAt(0));
+        const mime = imageMimeFromBytes(bytes);
+        return mime ? `data:${mime};base64,${base64}` : '';
+    }
+    catch {
+        return '';
+    }
+}
+function imageMimeFromBytes(bytes) {
+    if (bytes.length >= 12
+        && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+        && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50)
+        return 'image/webp';
+    if (bytes.length >= 8
+        && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47)
+        return 'image/png';
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+        return 'image/jpeg';
+    return '';
 }
 function bytesToBase64(bytes) {
     let binary = '';

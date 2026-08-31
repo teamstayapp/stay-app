@@ -100,6 +100,7 @@ import {
   saveTaskBank,
   DEFAULT_TASK_PLAN,
   DEFAULT_TASK_BANK,
+  TASK_CATEGORIES,
   type TaskCategory,
   type TaskBank,
   type TaskPlan,
@@ -129,6 +130,18 @@ import {
 import { loadPartnerGallery, savePartnerGallery } from './engine/partnerGallery'
 import { localClimaxReply, localCloseReply } from './engine/climax'
 import './App.css'
+
+const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
+  mix: 'Blandet',
+  lingerie: 'Lingeri',
+  edge: 'Edge',
+  sissy: 'Sissy',
+  protocol: 'Protocol',
+  worship: 'Worship',
+  estim: 'E-stim',
+  cei: 'Kondom / CEI',
+  work: 'Diskret ude',
+}
 
 function playStaySound(kind: 'moan' | 'come', existingContext?: AudioContext) {
   try {
@@ -295,6 +308,7 @@ export default function App() {
   const [activeTask, setActiveTask] = useState('')
   const [taskPlan, setTaskPlan] = useState<TaskPlan>(DEFAULT_TASK_PLAN)
   const [taskBank, setTaskBank] = useState<TaskBank>(DEFAULT_TASK_BANK)
+  const [taskEditorCategory, setTaskEditorCategory] = useState<TaskCategory>('lingerie')
   const [deviceSettingsUserId, setDeviceSettingsUserId] = useState('')
   const partnerPeakRef = useRef(false)
   const moanLockRef = useRef(false)
@@ -1980,26 +1994,31 @@ export default function App() {
             <span className="setup-fold-count">{taskPlan.count} stk.</span>
           </summary>
           <div className="setup-fold-content task-plan-grid">
-            <label className="field">
-              <span>Type opgave</span>
-              <select
-                value={taskPlan.category}
-                onChange={(event) => setTaskPlan((current) => ({
-                  ...current,
-                  category: event.target.value as TaskCategory,
-                }))}
-              >
-                <option value="mix">Blandet</option>
-                <option value="lingerie">Lingeri</option>
-                <option value="edge">Edge</option>
-                <option value="sissy">Sissy</option>
-                <option value="protocol">Protocol</option>
-                <option value="worship">Worship</option>
-                <option value="estim">E-stim</option>
-                <option value="cei">Kondom / CEI</option>
-                <option value="work">Diskret ude</option>
-              </select>
-            </label>
+            <div className="field task-category-field">
+              <span>Typer opgaver — vælg gerne flere</span>
+              <div className="task-category-options" role="group" aria-label="Vælg typer opgaver">
+                {TASK_CATEGORIES.map((category) => {
+                  const selected = taskPlan.categories.includes(category)
+                  return (
+                    <button
+                      key={category}
+                      type="button"
+                      className={selected ? 'on' : ''}
+                      aria-pressed={selected}
+                      onClick={() => setTaskPlan((current) => {
+                        if (category === 'mix') return { ...current, category: 'mix', categories: ['mix'] }
+                        const withoutMix = current.categories.filter((entry) => entry !== 'mix')
+                        const next = withoutMix.includes(category)
+                          ? withoutMix.filter((entry) => entry !== category)
+                          : [...withoutMix, category]
+                        const categories = next.length ? next : ['mix' as TaskCategory]
+                        return { ...current, category: categories[0], categories }
+                      })}
+                    >{TASK_CATEGORY_LABELS[category]}</button>
+                  )
+                })}
+              </div>
+            </div>
             <label className="field">
               <span>Interval i minutter</span>
               <input
@@ -2052,31 +2071,60 @@ export default function App() {
             <p className="privacy-note">
               E-stim gælder kun færdigt legetøj på lavt niveau — aldrig hoved, hals, bryst, beskadiget hud eller personer med elektroniske implantater. Diskrete opgaver må aldrig udføres foran andre.
             </p>
-            <details className="task-text-editor">
-              <summary>Rediger tekster i “{taskPlan.category === 'estim' ? 'E-stim' : taskPlan.category === 'cei' ? 'Kondom / CEI' : taskPlan.category === 'work' ? 'Diskret ude' : taskPlan.category}”</summary>
-              <div className="task-text-list">
-                {(taskBank[taskPlan.category] || []).map((line, index) => (
-                  <label className="field" key={`${taskPlan.category}-${index}`}>
-                    <span>Opgave {index + 1}</span>
-                    <input
-                      value={line}
-                      maxLength={180}
-                      onChange={(event) => setTaskBank((current) => ({
-                        ...current,
-                        [taskPlan.category]: current[taskPlan.category].map((entry, entryIndex) => (
-                          entryIndex === index ? event.target.value : entry
-                        )),
-                      }))}
-                    />
-                  </label>
+            <section className="task-text-editor" aria-labelledby="task-list-heading">
+              <div className="task-editor-heading">
+                <div>
+                  <strong id="task-list-heading">Opgaveliste</strong>
+                  <small>Tilføj, ret eller slet dine egne opgaver.</small>
+                </div>
+                <span>{taskBank[taskEditorCategory].length} stk.</span>
+              </div>
+              <div className="task-editor-tabs" role="group" aria-label="Kategori som skal redigeres">
+                {TASK_CATEGORIES.filter((category) => category !== 'mix').map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    className={taskEditorCategory === category ? 'on' : ''}
+                    aria-pressed={taskEditorCategory === category}
+                    onClick={() => setTaskEditorCategory(category)}
+                  >{TASK_CATEGORY_LABELS[category]}</button>
                 ))}
+              </div>
+              <div className="task-text-list">
+                {taskBank[taskEditorCategory].map((line, index) => (
+                  <div className="task-text-row" key={`${taskEditorCategory}-${index}`}>
+                    <label className="field">
+                      <span>Opgave {index + 1}</span>
+                      <input
+                        value={line}
+                        maxLength={180}
+                        onChange={(event) => setTaskBank((current) => ({
+                          ...current,
+                          [taskEditorCategory]: current[taskEditorCategory].map((entry, entryIndex) => (
+                            entryIndex === index ? event.target.value : entry
+                          )),
+                        }))}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="danger task-delete-button"
+                      aria-label={`Slet opgave ${index + 1}`}
+                      onClick={() => setTaskBank((current) => ({
+                        ...current,
+                        [taskEditorCategory]: current[taskEditorCategory].filter((_, entryIndex) => entryIndex !== index),
+                      }))}
+                    >Slet</button>
+                  </div>
+                ))}
+                {!taskBank[taskEditorCategory].length && <p className="privacy-note">Ingen opgaver i denne kategori endnu.</p>}
               </div>
               <div className="row">
                 <button
                   type="button"
                   onClick={() => setTaskBank((current) => ({
                     ...current,
-                    [taskPlan.category]: [...current[taskPlan.category], 'Ny opgave'],
+                    [taskEditorCategory]: [...current[taskEditorCategory], 'Ny opgave'],
                   }))}
                 >+ Tilføj tekst</button>
                 <button
@@ -2084,11 +2132,11 @@ export default function App() {
                   className="ghost"
                   onClick={() => setTaskBank((current) => ({
                     ...current,
-                    [taskPlan.category]: [...DEFAULT_TASK_BANK[taskPlan.category]],
+                    [taskEditorCategory]: [...DEFAULT_TASK_BANK[taskEditorCategory]],
                   }))}
                 >Gendan kategori</button>
               </div>
-            </details>
+            </section>
           </div>
         </details>
 

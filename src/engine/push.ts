@@ -101,6 +101,7 @@ async function writePushSettings(settings: PushSettings): Promise<void> {
     explicit: settings.explicit,
     partnerTitle: settings.partnerTitle,
     category: settings.plan.category,
+    categories: settings.plan.categories,
     taskBank: settings.taskBank,
   }), { headers: { 'Content-Type': 'application/json' } }))
 }

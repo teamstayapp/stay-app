@@ -2,6 +2,16 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 31. august 2026 — billedsvar, flervalg og synlig opgaveliste
+
+- Cloudflare Workeren accepterer nu billeder som rå JPEG/PNG/WebP, JSON/base64
+  eller en billed-URL og prøver en alternativ svarform ved fejl.
+- Flere opgavetyper kan vælges samtidig. **Blandet** vælger alle kategorier.
+- Opgavelisten er synlig direkte under dagsopgaver og har knapper til at
+  tilføje, redigere, slette og gendanne opgaver kategori for kategori.
+- Tomme, selvredigerede kategorier respekteres også af Web Push.
+- Service Worker-cachen er hævet, så den nye opgaveopsætning bliver hentet.
+
 ## 30. august 2026 — mobilchat og kropskort rettet
 
 - **Rør kroppen** lukker nu altid den store partnerbilledvisning først og åbner

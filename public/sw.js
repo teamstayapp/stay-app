@@ -1,4 +1,4 @@
-const CACHE = 'stay-v5'
+const CACHE = 'stay-v6'
 const APP_ROOT = new URL('./', self.registration.scope).href
 const PUSH_CONFIG_URL = new URL('stay-push-config', self.registration.scope).href
 
@@ -103,11 +103,23 @@ self.addEventListener('notificationclick', (event) => {
 
 async function showStayPush() {
   const settings = await readPushSettings()
-  const category = TASK_BANK[settings.category] ? settings.category : 'mix'
-  const customTasks = Array.isArray(settings.taskBank?.[category])
-    ? settings.taskBank[category].filter((entry) => typeof entry === 'string' && entry.trim()).slice(0, 24)
+  const selected = Array.isArray(settings.categories)
+    ? settings.categories.filter((category) => typeof category === 'string' && TASK_BANK[category])
     : []
-  const tasks = customTasks.length ? customTasks : TASK_BANK[category]
+  const categories = selected.length
+    ? selected
+    : [TASK_BANK[settings.category] ? settings.category : 'mix']
+  const concreteCategories = categories.includes('mix')
+    ? Object.keys(TASK_BANK).filter((category) => category !== 'mix')
+    : categories
+  const tasks = concreteCategories.flatMap((category) => {
+    if (Object.prototype.hasOwnProperty.call(settings.taskBank || {}, category)) {
+      return Array.isArray(settings.taskBank[category])
+        ? settings.taskBank[category].filter((entry) => typeof entry === 'string' && entry.trim()).slice(0, 24)
+        : []
+    }
+    return TASK_BANK[category] || []
+  })
   const task = tasks[Math.floor(Math.random() * tasks.length)] || 'Din næste opgave er klar.'
   const explicit = settings.explicit === true
   await self.registration.showNotification(explicit ? settings.partnerTitle : 'Stay', {
@@ -130,11 +142,12 @@ async function readPushSettings() {
         explicit: value.explicit === true,
         partnerTitle: value.partnerTitle === 'Master' ? 'Master' : 'Mistress',
         category: typeof value.category === 'string' ? value.category : 'mix',
+        categories: Array.isArray(value.categories) ? value.categories : [],
         taskBank: value.taskBank && typeof value.taskBank === 'object' ? value.taskBank : {},
       }
     }
   } catch {
     // Diskret standard bruges, hvis enhedens lokale indstilling ikke kan læses.
   }
-  return { explicit: false, partnerTitle: 'Stay', category: 'mix', taskBank: {} }
+  return { explicit: false, partnerTitle: 'Stay', category: 'mix', categories: ['mix'], taskBank: {} }
 }

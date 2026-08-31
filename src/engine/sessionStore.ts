@@ -91,6 +91,7 @@ DEFAULT_TASK_BANK.mix = TASK_CATEGORIES
 
 export interface TaskPlan {
   category: TaskCategory
+  categories: TaskCategory[]
   intervalMin: number
   count: number
   mode: 'random' | 'fixed'
@@ -98,6 +99,7 @@ export interface TaskPlan {
 
 export const DEFAULT_TASK_PLAN: TaskPlan = {
   category: 'mix',
+  categories: ['mix'],
   intervalMin: 45,
   count: 6,
   mode: 'random',
@@ -253,8 +255,17 @@ export function saveAvailability(userId: string, available: boolean): void {
 export function loadTaskPlan(userId: string): TaskPlan {
   try {
     const parsed = JSON.parse(localStorage.getItem(TASK_PLAN_PREFIX + userId) || '') as Partial<TaskPlan>
+    const legacyCategory = TASK_CATEGORIES.includes(parsed.category as TaskCategory)
+      ? parsed.category as TaskCategory
+      : 'mix'
+    const storedCategories = Array.isArray(parsed.categories)
+      ? [...new Set(parsed.categories.filter((category): category is TaskCategory => TASK_CATEGORIES.includes(category as TaskCategory)))]
+      : []
+    const categories = storedCategories.length ? storedCategories : [legacyCategory]
+    const normalizedCategories = categories.includes('mix') ? ['mix' as TaskCategory] : categories
     return {
-      category: TASK_CATEGORIES.includes(parsed.category as TaskCategory) ? parsed.category as TaskCategory : 'mix',
+      category: normalizedCategories[0],
+      categories: normalizedCategories,
       intervalMin: Math.max(5, Math.min(360, Number(parsed.intervalMin) || DEFAULT_TASK_PLAN.intervalMin)),
       count: Math.max(1, Math.min(24, Number(parsed.count) || DEFAULT_TASK_PLAN.count)),
       mode: parsed.mode === 'fixed' ? 'fixed' : 'random',
@@ -278,7 +289,7 @@ export function loadTaskBank(userId: string): TaskBank {
         .map((entry) => entry.trim().slice(0, 180))
         .filter(Boolean)
         .slice(0, 24)
-      if (cleaned.length) fallback[category] = cleaned
+      fallback[category] = cleaned
     }
   } catch {
     // Standardteksterne bruges, hvis det lokale lager er beskadiget.
@@ -296,7 +307,8 @@ export function saveTaskBank(userId: string, bank: TaskBank): void {
 
 export function saveTaskPlan(userId: string, plan: TaskPlan): void {
   localStorage.setItem(TASK_PLAN_PREFIX + userId, JSON.stringify({
-    category: plan.category,
+    category: plan.categories[0] || plan.category,
+    categories: plan.categories.length ? plan.categories : [plan.category],
     intervalMin: Math.max(5, Math.min(360, plan.intervalMin)),
     count: Math.max(1, Math.min(24, plan.count)),
     mode: plan.mode,
