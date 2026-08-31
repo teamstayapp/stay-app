@@ -7,9 +7,21 @@ const PUSH_CONFIG_URL = new URL('stay-push-config', window.location.href).href
 
 interface PushSettings {
   explicit: boolean
-  partnerTitle: string
-  plan: TaskPlan
+  partnerTitle?: string
+  plan?: TaskPlan
+  intervalMin?: number
+  count?: number
 }
+
+export async function writeStayTaskQueue(explicit: boolean, body: string) {
+  const cache = await caches.open('stay-push-queue')
+  await cache.put('/queue', new Response(JSON.stringify({
+    explicit,
+    title: explicit ? 'Mistress' : 'Stay',
+    body: explicit ? body : 'Ny note. Åbn appen.',
+  }), { headers: { 'Content-Type': 'application/json' } }))
+}
+
 
 export async function hasStayPushSubscription(): Promise<boolean> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
