@@ -11,7 +11,9 @@ import type {
   Figure,
   HairColor,
   HairLength,
+  HairStyle,
   HipSize,
+  ImagePose,
   Intensity,
   Line,
   Look,
@@ -179,6 +181,7 @@ const emptyProfile = (): Profile => ({
   likeWords: '',
   banWords: '',
   look: 'clothed',
+  imagePose: 'portrait',
   profession: 'none',
   body: 'athletic',
   skin: 'olive',
@@ -186,6 +189,7 @@ const emptyProfile = (): Profile => ({
   penis: 'large',
   hairColor: 'brown',
   hairLength: 'long',
+  hairStyles: [],
   eyes: 'brown',
   makeup: 'soft',
   facialHair: 'none',
@@ -270,6 +274,8 @@ export default function App() {
   const [bodyOpen, setBodyOpen] = useState(false)
   const [bodyView, setBodyView] = useState<BodyView>('front')
   const [stageOpen, setStageOpen] = useState(false)
+  const [fullScreenImage, setFullScreenImage] = useState<{ url: string; alt: string } | null>(null)
+  const [sessionMenuOpen, setSessionMenuOpen] = useState(false)
   const [edgeMode, setEdgeMode] = useState<'idle' | 'play' | 'hold'>('idle')
   const [edgeLeft, setEdgeLeft] = useState(0)
   const [strokeLeft, setStrokeLeft] = useState(0)
@@ -282,6 +288,7 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(false)
   const [availableOn, setAvailableOn] = useState(false)
   const [availabilityNotice, setAvailabilityNotice] = useState('')
+  const [activeTask, setActiveTask] = useState('')
   const [taskPlan, setTaskPlan] = useState<TaskPlan>(DEFAULT_TASK_PLAN)
   const [deviceSettingsUserId, setDeviceSettingsUserId] = useState('')
   const partnerPeakRef = useRef(false)
@@ -320,6 +327,7 @@ export default function App() {
   const logEndRef = useRef<HTMLDivElement>(null)
   const savedMediaBlobRef = useRef<Blob | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const taskPhotoRef = useRef<HTMLInputElement>(null)
 
   useEffect(
     () =>
@@ -843,6 +851,51 @@ export default function App() {
     }
   }
 
+  async function createChatImage() {
+    if (imageBusy || aiThinking) return
+    if (!aiIsConfigured()) {
+      push(systemLine('Billed-AI er ikke konfigureret endnu.'))
+      return
+    }
+    if (imageGenerationsLeft < 1) {
+      push(systemLine('Du har ingen figurbilleder tilbage på planen.'))
+      return
+    }
+    const controller = new AbortController()
+    setImageBusy(true)
+    setSessionMenuOpen(false)
+    try {
+      const imageUrl = favoriteLook
+        ? await generatePartnerPose({
+            profile: profileWithCatalog(profile, contentCatalog),
+            referenceImageUrl: favoriteLook.imageUrl,
+            signal: controller.signal,
+          })
+        : await generatePartnerImage({
+            profile: profileWithCatalog(profile, contentCatalog),
+            signal: controller.signal,
+          })
+      setProfile((current) => ({ ...current, partnerImageUrl: imageUrl }))
+      const imageUrls = [imageUrl, ...gallery.filter((item) => item !== imageUrl)].slice(0, 12)
+      setGallery(imageUrls)
+      if (favoriteLook) {
+        const updatedLook = {
+          ...favoriteLook,
+          poseImages: [...new Set([...favoriteLook.poseImages, imageUrl])].slice(-4),
+          savedAt: new Date().toISOString(),
+        }
+        setFavoriteLook(updatedLook)
+        if (account && profile.privacyMode === 'device') await saveFavoriteLook(updatedLook)
+      }
+      if (account && profile.privacyMode === 'device') await savePartnerGallery(account.id, imageUrls)
+      push({ ...aiLine(`${partnerDisplayName(profile)} sender dig et nyt billede.`), imageUrl })
+    } catch (error) {
+      push(systemLine(error instanceof Error ? `Billedet kunne ikke laves: ${error.message}` : 'Billedet kunne ikke laves.'))
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
   async function saveCurrentLook() {
     if (!account || !profile.partnerImageUrl || favoriteBusy) return
     setFavoriteBusy(true)
@@ -1065,24 +1118,23 @@ export default function App() {
     intent: 'chat' | 'task' | 'touch' | 'close' | 'climax',
     visibleText = text,
     touchZone?: BodyZoneId,
-  ) {
+  ): Promise<string | undefined> {
     if (!text || aiThinking) return
     if (!aiIsConfigured()) {
+      const localReply = intent === 'task'
+        ? 'Opgaveknappen kræver, at AI-chatten er aktiv.'
+        : intent === 'touch'
+          ? 'Kropsfunktionen kræver, at AI-chatten er aktiv.'
+          : intent === 'close'
+            ? localCloseReply(profile)
+            : intent === 'climax'
+              ? localClimaxReply(profile)
+              : replyToText(profile, text, near)
       push(
         youLine(visibleText),
-        aiLine(
-          intent === 'task'
-            ? 'Opgaveknappen kræver, at AI-chatten er aktiv.'
-            : intent === 'touch'
-              ? 'Kropsfunktionen kræver, at AI-chatten er aktiv.'
-              : intent === 'close'
-                ? localCloseReply(profile)
-                : intent === 'climax'
-                  ? localClimaxReply(profile)
-              : replyToText(profile, text, near),
-        ),
+        aiLine(localReply),
       )
-      return
+      return localReply
     }
 
     const controller = new AbortController()
@@ -1103,13 +1155,20 @@ export default function App() {
         signal: controller.signal,
       })
       push(aiLine(reply))
+      return reply
     } catch (error) {
       if (controller.signal.aborted) return
       const message = error instanceof Error ? error.message : 'Ukendt AI-fejl'
       push(systemLine(`AI kunne ikke svare: ${message}`))
-      if (intent === 'chat') push(aiLine(replyToText(profile, text, near)))
-      if (intent === 'close') push(aiLine(localCloseReply(profile)))
-      if (intent === 'climax') push(aiLine(localClimaxReply(profile)))
+      const fallbackReply = intent === 'chat'
+        ? replyToText(profile, text, near)
+        : intent === 'close'
+          ? localCloseReply(profile)
+          : intent === 'climax'
+            ? localClimaxReply(profile)
+            : undefined
+      if (fallbackReply) push(aiLine(fallbackReply))
+      return fallbackReply
     } finally {
       if (aiRequestRef.current === controller) aiRequestRef.current = null
       setAiThinking(false)
@@ -1132,11 +1191,56 @@ export default function App() {
   }
 
   async function requestTask() {
-    await sendAiRequest(
+    const task = await sendAiRequest(
       'Giv mig én konkret opgave, der fortsætter vores aktuelle samtale og passer til mine valg, grænser og mit udstyr.',
       'task',
       'Giv mig en opgave',
     )
+    if (task) setActiveTask(task)
+  }
+
+  async function completeTask() {
+    const task = activeTask.trim()
+    if (!task || aiThinking) return
+    setActiveTask('')
+    await sendAiRequest(
+      `Jeg har udført opgaven: ${task}. Bekræft det kort i rollen og sig, hvad der sker nu.`,
+      'chat',
+      'Opgave udført',
+    )
+  }
+
+  async function sendTaskPhoto(file: File) {
+    const task = activeTask.trim()
+    if (!task || aiThinking) return
+    dropMedia()
+    const url = URL.createObjectURL(file)
+    savedMediaBlobRef.current = file
+    setMedia({ url, kind: 'image', blob: file })
+    setActiveTask('')
+    push(youLine(`Viste foto for opgaven: ${task}`))
+    if (!aiIsConfigured()) {
+      push(aiLine('Godt. Jeg kan se, at du har gjort det.'))
+      return
+    }
+    setAiThinking(true)
+    try {
+      const reply = await analyzeImage({
+        profile: profileWithCatalog(profile, contentCatalog),
+        near,
+        cycle,
+        partnerHeat,
+        userHeat,
+        lines,
+        text: `Brugeren siger, at opgaven er udført: ${task}. Se billedet og bekræft kort i rollen. Beskriv kun det, du tydeligt kan se.`,
+        file,
+      })
+      push(aiLine(reply))
+    } catch (error) {
+      push(systemLine(error instanceof Error ? `Fotoet kunne ikke læses: ${error.message}` : 'Fotoet kunne ikke læses.'))
+    } finally {
+      setAiThinking(false)
+    }
   }
 
   async function requestInspection() {
@@ -2190,6 +2294,23 @@ export default function App() {
           “Skab AI-partner” bruger billedmodellen, som admin har valgt til scenen. Hud og krop er kun figurens udseende.
         </p>
 
+        <h2>Billedpose</h2>
+        <p className="hint">Vælg komposition til næste billede. Figuren er altid fiktiv og tydeligt voksen.</p>
+        <div className="row">
+          {([['portrait', 'Portræt'], ['kneel_harness', 'På knæ i sele'], ['lace_rear', 'Blonder bagfra'], ['futa_harness', 'Futa / sele']] as Array<[ImagePose, string]>).map(([id, title]) => (
+            <button
+              key={id}
+              type="button"
+              className={profile.imagePose === id ? 'chip on' : 'chip'}
+              disabled={id !== 'portrait' && !currentPlan.nsfw}
+              onClick={() => setProfile({
+                ...profile,
+                imagePose: id,
+                ...(id !== 'portrait' ? { look: 'nsfw', nsfw: true } : {}),
+              })}
+            >{title}</button>
+          ))}
+        </div>
 
         <h2>Erhverv / uniform</h2>
         <p className="hint">Voksne roller. Underviser er universitet — aldrig skole eller mindreårige.</p>
@@ -2292,15 +2413,51 @@ export default function App() {
 
 
         <h2>Hår</h2>
+        <p className="hint">Farve — vælg én</p>
         <div className="row">
           {([['blonde', 'Blond'], ['brown', 'Brunt'], ['black', 'Sort'], ['red', 'Rødt'], ['dark', 'Mørkt'], ['grey', 'Gråt']] as Array<[HairColor, string]>).map(([id, title]) => (
             <button key={id} type="button" className={profile.hairColor === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, hairColor: id })}>{title}</button>
           ))}
         </div>
+        <p className="hint">Længde — vælg én</p>
         <div className="row">
-          {([['short', 'Kort'], ['shoulder', 'Skulder'], ['long', 'Langt'], ['bun', 'Opsat'], ['messy', 'Pjusket']] as Array<[HairLength, string]>).map(([id, title]) => (
-            <button key={id} type="button" className={profile.hairLength === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, hairLength: id })}>{title}</button>
+          {([['short', 'Kort'], ['shoulder', 'Skulder'], ['long', 'Langt']] as Array<[HairLength, string]>).map(([id, title]) => (
+            <button
+              key={id}
+              type="button"
+              className={profile.hairLength === id ? 'chip on' : 'chip'}
+              onClick={() => {
+                const legacyStyle = profile.hairLength === 'bun' || profile.hairLength === 'messy' ? profile.hairLength : null
+                setProfile({
+                  ...profile,
+                  hairLength: id,
+                  hairStyles: legacyStyle && !(profile.hairStyles || []).includes(legacyStyle)
+                    ? [...(profile.hairStyles || []), legacyStyle]
+                    : profile.hairStyles || [],
+                })
+              }}
+            >{title}</button>
           ))}
+        </div>
+        <p className="hint">Styling — vælg gerne flere</p>
+        <div className="row">
+          {([['bun', 'Opsat'], ['messy', 'Pjusket']] as Array<[HairStyle, string]>).map(([id, title]) => {
+            const selectedStyles = profile.hairStyles || (profile.hairLength === 'bun' || profile.hairLength === 'messy' ? [profile.hairLength] : [])
+            const selected = selectedStyles.includes(id)
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={selected}
+                className={selected ? 'chip on' : 'chip'}
+                onClick={() => setProfile({
+                  ...profile,
+                  hairLength: profile.hairLength === 'bun' || profile.hairLength === 'messy' ? 'long' : profile.hairLength,
+                  hairStyles: selected ? selectedStyles.filter((style) => style !== id) : [...selectedStyles, id],
+                })}
+              >{title}</button>
+            )
+          })}
         </div>
         <h2>Øjne</h2>
         <div className="row">
@@ -2852,6 +3009,37 @@ export default function App() {
         </section>
         </>
       )}
+      {fullScreenImage && (
+        <>
+          <button
+            type="button"
+            className="modal-backdrop"
+            aria-label="Luk stort chatbillede"
+            onClick={() => setFullScreenImage(null)}
+          />
+          <section className="stage" role="dialog" aria-modal="true" aria-label={fullScreenImage.alt}>
+            <div className="stage-head">
+              <strong>{fullScreenImage.alt}</strong>
+              <button type="button" onClick={() => setFullScreenImage(null)}>× Luk</button>
+            </div>
+            <button type="button" className="stage-hit" onClick={() => setFullScreenImage(null)}>
+              <img src={fullScreenImage.url} alt={fullScreenImage.alt} />
+            </button>
+            <div className="stage-tools">
+              <button type="button" className="ghost" onClick={() => void saveImageToDevice(fullScreenImage.url, 'stay-chatbillede.png')}>Gem billede</button>
+              <button type="button" className="ghost" onClick={() => setFullScreenImage(null)}>Lille visning</button>
+            </div>
+          </section>
+        </>
+      )}
+      {sessionMenuOpen && (
+        <button
+          type="button"
+          className="session-menu-backdrop"
+          aria-label="Luk sidemenu"
+          onClick={() => setSessionMenuOpen(false)}
+        />
+      )}
       <header className="partner-card">
         <button
           type="button"
@@ -2881,7 +3069,21 @@ export default function App() {
             <small className="portrait-empty-text">Fast partnerbillede</small>
           )}
         </div>
-        <div className="chat-tools">
+        <button
+          type="button"
+          className="session-menu-toggle"
+          aria-expanded={sessionMenuOpen}
+          aria-controls="session-side-menu"
+          onClick={() => setSessionMenuOpen((open) => !open)}
+        >
+          ☰ Menu
+        </button>
+        <aside id="session-side-menu" className={sessionMenuOpen ? 'session-side-menu open' : 'session-side-menu'}>
+          <div className="session-side-head">
+            <strong>Scene og indstillinger</strong>
+            <button type="button" onClick={() => setSessionMenuOpen(false)}>× Luk</button>
+          </div>
+          <div className="chat-tools">
           <button className="note-button" onClick={panic}>Noter</button>
           <button
             type="button"
@@ -2933,27 +3135,40 @@ export default function App() {
           <button className="safe" onClick={() => tickSession('safe')}>
             {profile.limits.safeword}
           </button>
-        </div>
+          </div>
+          {availabilityNotice && <p className="hint availability-notice">{availabilityNotice}</p>}
+          <section className="heat-board" aria-label="Hvor tæt I er på at komme">
+            <div className="heat-row">
+              <span>{partnerName}</span>
+              <div className="heat-track"><i style={{ width: `${partnerHeat}%` }} /></div>
+              <em>{partnerHeat}</em>
+            </div>
+            <div className="heat-row">
+              <span>Dig</span>
+              <div className="heat-track user"><i style={{ width: `${userHeat}%` }} /></div>
+              <em>{userHeat}</em>
+              <div className="heat-adjust">
+                <button type="button" onClick={() => setUserHeat((h) => Math.max(0, h - 8))}>−</button>
+                <button type="button" onClick={() => setUserHeat((h) => Math.min(100, h + 8))}>+</button>
+              </div>
+            </div>
+          </section>
+        </aside>
       </header>
 
-      {availabilityNotice && <p className="hint availability-notice">{availabilityNotice}</p>}
-
-      <section className="heat-board" aria-label="Hvor tæt I er på at komme">
-        <div className="heat-row">
-          <span>{partnerName}</span>
-          <div className="heat-track"><i style={{ width: `${partnerHeat}%` }} /></div>
-          <em>{partnerHeat}</em>
-        </div>
-        <div className="heat-row">
-          <span>Dig</span>
-          <div className="heat-track user"><i style={{ width: `${userHeat}%` }} /></div>
-          <em>{userHeat}</em>
-          <div className="heat-adjust">
-            <button type="button" onClick={() => setUserHeat((h) => Math.max(0, h - 8))}>−</button>
-            <button type="button" onClick={() => setUserHeat((h) => Math.min(100, h + 8))}>+</button>
+      {activeTask && (
+        <section className="active-task-card" aria-live="polite">
+          <div>
+            <strong>Aktuel opgave</strong>
+            <p>{activeTask}</p>
           </div>
-        </div>
-      </section>
+          <div className="active-task-actions">
+            <button type="button" disabled={aiThinking} onClick={() => void completeTask()}>Opgave udført</button>
+            <button type="button" disabled={aiThinking} onClick={() => taskPhotoRef.current?.click()}>Send foto</button>
+            <button type="button" className="ghost" onClick={() => setActiveTask('')}>Skjul</button>
+          </div>
+        </section>
+      )}
 
 
       {(edgeMode !== 'idle' || strokeLeft > 0) && (
@@ -3035,6 +3250,16 @@ export default function App() {
           <div key={line.id} className={`message ${line.from}`}>
             <span className="message-name">{line.from === 'ai' ? partnerName : userChatName}</span>
             <p>{line.text}</p>
+            {line.imageUrl && (
+              <button
+                type="button"
+                className="chat-generated-image"
+                onClick={() => setFullScreenImage({ url: line.imageUrl || '', alt: `Billede fra ${partnerName}` })}
+              >
+                <img src={line.imageUrl} alt={`Billede fra ${partnerName}`} />
+                <span>Tryk for fuld skærm</span>
+              </button>
+            )}
           </div>
         ))}
         {aiThinking && (
@@ -3049,7 +3274,13 @@ export default function App() {
             {media.kind === 'video' ? (
               <video src={media.url} controls playsInline />
             ) : (
-              <img src={media.url} alt="Dit valgte medie" />
+              <button
+                type="button"
+                className="chat-upload-image"
+                onClick={() => setFullScreenImage({ url: media.url, alt: 'Dit valgte billede' })}
+              >
+                <img src={media.url} alt="Dit valgte medie" />
+              </button>
             )}
             <div className="preview-footer">
           <span>{media.kind === 'image' && aiIsConfigured() ? 'Sendt til privat billedanalyse' : 'Kun på din telefon'}</span>
@@ -3094,6 +3325,9 @@ export default function App() {
           <div className="session-actions" aria-label="Flere scenevalg">
             <button type="button" disabled={aiThinking} onClick={() => void requestInspection()}>Inspektion</button>
             <button type="button" disabled={aiThinking} onClick={() => void requestProtocol()}>Protocol</button>
+            <button type="button" disabled={imageBusy || aiThinking} onClick={() => void createChatImage()}>
+              {imageBusy ? 'Laver billede…' : 'Billede i chat'}
+            </button>
             <button type="button" disabled={aiThinking} onClick={() => {
               setStrokeLeft(10)
               void sendAiRequest('Ti ryk. Tæl med. Stop efter ti.', 'task', '10 ryk')
@@ -3162,6 +3396,17 @@ export default function App() {
           const file = e.target.files?.[0]
           e.target.value = ''
           if (file) void attachMedia(file)
+        }}
+      />
+      <input
+        ref={taskPhotoRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          if (file) void sendTaskPhoto(file)
         }}
       />
     </main>

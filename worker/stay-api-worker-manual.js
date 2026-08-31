@@ -240,12 +240,15 @@ async function generateImage(req, env, body) {
         return json(req, env, { error: usageGate.error }, usageGate.status);
     const profile = profileForPlan(body.profile, usageGate.gate.plan);
     const prompt = buildImagePrompt(profile, scene);
-    const sizing = imageModel === 'grok-imagine-image'
-        ? { aspect_ratio: '2:3', resolution: '1K' }
-        : { width: 768, height: 1152 };
     let imageUrl = '';
+    let usedModel = imageModel;
     let lastError = 'Billedmodellen svarede med et tomt eller beskadiget billede.';
-    for (let attempt = 0; attempt < 2 && !imageUrl; attempt += 1) {
+    const fallbackModel = 'venice-sd35';
+    const modelAttempts = imageModel === fallbackModel ? [imageModel, imageModel] : [imageModel, fallbackModel];
+    for (const attemptedModel of modelAttempts) {
+        const sizing = attemptedModel === 'grok-imagine-image'
+            ? { aspect_ratio: '2:3', resolution: '1K' }
+            : { width: 768, height: 1152 };
         let venice;
         try {
             venice = await fetch('https://api.venice.ai/api/v1/image/generate', {
@@ -256,12 +259,11 @@ async function generateImage(req, env, body) {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: imageModel,
+                    model: attemptedModel,
                     prompt,
                     negative_prompt: 'close-up, headshot, cropped body, cropped feet, body out of frame, black image, blank image, silhouette, underexposed, blurry, duplicate person, extra people, malformed anatomy, text, logo, watermark, childlike features, age ambiguity',
-                    variants: 1,
                     format: 'webp',
-                    return_binary: false,
+                    return_binary: true,
                     safe_mode: profile.nsfw !== true,
                     seed: randomImageSeed(),
                     enhance_prompt: false,
@@ -273,27 +275,27 @@ async function generateImage(req, env, body) {
             lastError = 'Billedmodellen kunne ikke kontaktes';
             continue;
         }
-        const data = (await venice.json().catch(() => null));
         if (!venice.ok) {
+            const data = await venice.clone().json().catch(() => null);
             lastError = veniceImageError(data, venice.status);
             continue;
         }
-        const compatibilityImage = data?.data?.[0];
-        const rawImage = data?.images?.[0] || compatibilityImage?.b64_json || compatibilityImage?.url || '';
-        const candidate = rawImage.startsWith('data:image/')
-            ? rawImage
-            : rawImage ? `data:image/webp;base64,${rawImage}` : '';
-        const encodedImage = candidate.includes(',') ? candidate.slice(candidate.indexOf(',') + 1) : '';
-        if (candidate && encodedImage.length >= 10_000 && /^[a-zA-Z0-9+/=]+$/.test(encodedImage)) {
-            imageUrl = candidate;
+        const contentType = (venice.headers.get('content-type') || 'image/webp').split(';')[0].trim().toLowerCase();
+        const imageBytes = new Uint8Array(await venice.arrayBuffer());
+        if (contentType.startsWith('image/') && imageBytes.length >= 8_000) {
+            imageUrl = `data:${contentType};base64,${bytesToBase64(imageBytes)}`;
+            usedModel = attemptedModel;
+        }
+        else {
+            lastError = 'Billedmodellen sendte ikke et gyldigt billede.';
         }
     }
     if (!imageUrl)
         return json(req, env, { error: `${lastError} Prøv igen.` }, 502);
-    const recorded = await recordUsage(env, usageGate.gate, imageModel);
+    const recorded = await recordUsage(env, usageGate.gate, usedModel);
     if (!recorded)
         return json(req, env, { error: 'Billedet blev lavet, men forbruget kunne ikke registreres. Prøv igen.' }, 503);
-    return json(req, env, { imageUrl, model: imageModel, usage: usageSummary(usageGate.gate) });
+    return json(req, env, { imageUrl, model: usedModel, usage: usageSummary(usageGate.gate) });
 }
 async function generatePartnerPose(req, env, body) {
     const referenceImageUrl = typeof body.referenceImageUrl === 'string' ? body.referenceImageUrl : '';
@@ -478,14 +480,22 @@ function buildImagePrompt(profile, scene) {
     const anatomy = figure === 'female'
         ? `${safe(profile.breasts, 'medium')} breasts, ${safe(profile.ass, 'round')} ass, ${safe(profile.hips, 'soft')} hips`
         : `${safe(profile.penis, 'average').replace('_', ' ')} penis, ${safe(profile.ass, 'round')} ass, ${safe(profile.facialHair, 'none')} facial hair`;
-    const hairLabels = {
+    const hairLengthLabels = {
         short: 'short',
         shoulder: 'shoulder-length',
         long: 'long',
-        bun: 'hair in a bun',
-        messy: 'tousled messy',
     };
-    const hair = `${hairLabels[safe(profile.hairLength, 'long')] || 'long'} ${safe(profile.hairColor, 'brown')} hair`;
+    const legacyHair = safe(profile.hairLength, 'long');
+    const hairLength = hairLengthLabels[legacyHair] || 'long';
+    const hairStyles = Array.isArray(profile.hairStyles)
+        ? profile.hairStyles.filter((style) => style === 'bun' || style === 'messy')
+        : [];
+    if ((legacyHair === 'bun' || legacyHair === 'messy') && !hairStyles.includes(legacyHair))
+        hairStyles.push(legacyHair);
+    const hairStyleText = hairStyles
+        .map((style) => style === 'bun' ? 'styled partly up in a bun' : 'with a tousled messy texture')
+        .join(' and ');
+    const hair = `${hairLength} ${safe(profile.hairColor, 'brown')} hair${hairStyleText ? `, ${hairStyleText}` : ''}`;
     const lingerie = Array.isArray(profile.lingeriePartner)
         ? profile.lingeriePartner.filter((item) => typeof item === 'string').slice(0, 12).join(', ')
         : '';
@@ -501,6 +511,15 @@ function buildImagePrompt(profile, scene) {
         safe(profile.cockPreset, 'none') === 'bwc' ? 'adult light-skinned man, large penis, no text' : '',
         lingerie ? `selected partner clothing: ${lingerie}` : '',
         plainText(profile.lookWish, '') ? `extra look notes: ${plainText(profile.lookWish, '').slice(0, 180)}` : '',
+        safe(profile.imagePose, 'portrait') === 'kneel_harness'
+            ? 'full-body composition, kneeling upright or on all fours, black leather harness and collar'
+            : '',
+        safe(profile.imagePose, 'portrait') === 'lace_rear'
+            ? 'full-body three-quarter rear view, lace lingerie, face partly turned toward camera'
+            : '',
+        safe(profile.imagePose, 'portrait') === 'futa_harness'
+            ? 'fictional clearly adult feminine character with penis, black leather harness, kneeling, full body'
+            : '',
     ].filter(Boolean).join(', ');
     return [
         'Create a high-quality vertical 2:3 photograph of one fictional adult character, clearly age 25 or older.',
@@ -1255,6 +1274,14 @@ function buildSystemPrompt(profileValue, stateValue, scene, intent, equipmentCat
             : '',
         plan === 'plus' && profile.nsfw === true && scene.plusSystemPrompt
             ? `Scenens ekstra Plus-instruktion: ${scene.plusSystemPrompt}`
+            : '',
+        intent === 'chat'
+            ? [
+                'Dette er fri samtale, ikke automatisk en ny opgave.',
+                'Svar først direkte på det, brugeren faktisk skriver eller spørger om. Et ja/nej-spørgsmål skal have et tydeligt svar i rollen og en kort naturlig begrundelse.',
+                'Du er en person i legen, ikke en opgavemaskine. Giv kun en ny ordre, hvis samtalen naturligt kalder på det.',
+                'Skriv 2–6 korte sætninger. Bevar scenens tone uden at ignorere brugerens spørgsmål.',
+            ].join(' ')
             : '',
         intent === 'task'
             ? [

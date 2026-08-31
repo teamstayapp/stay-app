@@ -3,12 +3,14 @@ export type PlayMode = 'oneway' | 'mutual'
 export type CockPreset = 'none' | 'bbc' | 'bwc'
 export type Figure = 'master' | 'mistress'
 export type Look = 'clothed' | 'fetish' | 'nsfw'
+export type ImagePose = 'portrait' | 'kneel_harness' | 'lace_rear' | 'futa_harness'
 export type Body = 'slim' | 'athletic' | 'solid'
 export type Skin = 'light' | 'olive' | 'brown' | 'dark'
 export type Breasts = 'small' | 'medium' | 'large'
 export type Penis = 'average' | 'large' | 'very_large'
 export type HairColor = 'blonde' | 'brown' | 'black' | 'red' | 'dark' | 'grey'
 export type HairLength = 'short' | 'shoulder' | 'long' | 'bun' | 'messy'
+export type HairStyle = 'bun' | 'messy'
 export type EyeColor = 'brown' | 'green' | 'blue' | 'grey'
 export type Makeup = 'none' | 'soft' | 'heavy' | 'smudged'
 export type FacialHair = 'none' | 'stubble' | 'beard'
@@ -76,6 +78,7 @@ export interface Profile {
   likeWords: string
   banWords: string
   look: Look
+  imagePose: ImagePose
   profession: ProfessionId
   body: Body
   skin: Skin
@@ -83,6 +86,7 @@ export interface Profile {
   penis: Penis
   hairColor: HairColor
   hairLength: HairLength
+  hairStyles?: HairStyle[]
   eyes: EyeColor
   makeup: Makeup
   facialHair: FacialHair
@@ -120,4 +124,5 @@ export interface Line {
   id: string
   from: 'ai' | 'you' | 'system'
   text: string
+  imageUrl?: string
 }
