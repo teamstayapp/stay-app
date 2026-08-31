@@ -89,6 +89,7 @@ import {
   loadPanicDestination,
   loadPrivacyMode,
   loadTaskPlan,
+  loadTaskBank,
   saveDeviceSession,
   saveAvailability,
   saveDeviceMemory,
@@ -96,8 +97,11 @@ import {
   savePanicDestination,
   savePrivacyMode,
   saveTaskPlan,
+  saveTaskBank,
   DEFAULT_TASK_PLAN,
+  DEFAULT_TASK_BANK,
   type TaskCategory,
+  type TaskBank,
   type TaskPlan,
   type PanicDestination,
 } from './engine/sessionStore'
@@ -290,6 +294,7 @@ export default function App() {
   const [availabilityNotice, setAvailabilityNotice] = useState('')
   const [activeTask, setActiveTask] = useState('')
   const [taskPlan, setTaskPlan] = useState<TaskPlan>(DEFAULT_TASK_PLAN)
+  const [taskBank, setTaskBank] = useState<TaskBank>(DEFAULT_TASK_BANK)
   const [deviceSettingsUserId, setDeviceSettingsUserId] = useState('')
   const partnerPeakRef = useRef(false)
   const moanLockRef = useRef(false)
@@ -339,6 +344,7 @@ export default function App() {
           setGallery([])
           setAvailableOn(false)
           setTaskPlan(DEFAULT_TASK_PLAN)
+          setTaskBank(DEFAULT_TASK_BANK)
           setDeviceSettingsUserId('')
           setProfile((current) => ({ ...current, partnerImageUrl: undefined }))
         }
@@ -429,6 +435,7 @@ export default function App() {
     const notificationStyle = loadNotificationStyle(account.id)
     const savedPanicDestination = loadPanicDestination(account.id)
     const savedTaskPlan = loadTaskPlan(account.id)
+    const savedTaskBank = loadTaskBank(account.id)
     const memory = privacyMode === 'device' ? loadDeviceMemory(account.id) : { notes: '', last: '' }
     void Promise.all([hasDeviceSession(account.id), hasStayPushSubscription()]).then(([available, pushActive]) => {
       setSavedSessionAvailable(available)
@@ -439,6 +446,7 @@ export default function App() {
         && Notification.permission === 'granted',
       )
       setTaskPlan(savedTaskPlan)
+      setTaskBank(savedTaskBank)
       setProfile((current) => ({
         ...current,
         privacyMode,
@@ -467,15 +475,21 @@ export default function App() {
   }, [account, deviceSettingsUserId, taskPlan])
 
   useEffect(() => {
+    if (!account || deviceSettingsUserId !== account.id) return
+    saveTaskBank(account.id, taskBank)
+  }, [account, deviceSettingsUserId, taskBank])
+
+  useEffect(() => {
     if (!availableOn || !account || deviceSettingsUserId !== account.id) return
     void updateStayPush({
       explicit: profile.notificationStyle === 'explicit',
       partnerTitle: profile.partnerName.trim() || (profile.figure === 'mistress' ? 'Mistress' : 'Master'),
       plan: taskPlan,
+      taskBank,
     }).then((error) => {
       if (error) setAvailabilityNotice(error)
     })
-  }, [account, availableOn, deviceSettingsUserId, profile.figure, profile.notificationStyle, profile.partnerName, taskPlan])
+  }, [account, availableOn, deviceSettingsUserId, profile.figure, profile.notificationStyle, profile.partnerName, taskBank, taskPlan])
 
   useEffect(() => {
     if (!account || profile.privacyMode !== 'device' || (phase !== 'session' && phase !== 'aftercare')) return
@@ -1981,6 +1995,9 @@ export default function App() {
                 <option value="sissy">Sissy</option>
                 <option value="protocol">Protocol</option>
                 <option value="worship">Worship</option>
+                <option value="estim">E-stim</option>
+                <option value="cei">Kondom / CEI</option>
+                <option value="work">Diskret ude</option>
               </select>
             </label>
             <label className="field">
@@ -2032,6 +2049,46 @@ export default function App() {
               </label>
             </div>
             <p className="privacy-note">Opgaverne sendes først, når du selv slår “Til rådighed” til i chatten.</p>
+            <p className="privacy-note">
+              E-stim gælder kun færdigt legetøj på lavt niveau — aldrig hoved, hals, bryst, beskadiget hud eller personer med elektroniske implantater. Diskrete opgaver må aldrig udføres foran andre.
+            </p>
+            <details className="task-text-editor">
+              <summary>Rediger tekster i “{taskPlan.category === 'estim' ? 'E-stim' : taskPlan.category === 'cei' ? 'Kondom / CEI' : taskPlan.category === 'work' ? 'Diskret ude' : taskPlan.category}”</summary>
+              <div className="task-text-list">
+                {(taskBank[taskPlan.category] || []).map((line, index) => (
+                  <label className="field" key={`${taskPlan.category}-${index}`}>
+                    <span>Opgave {index + 1}</span>
+                    <input
+                      value={line}
+                      maxLength={180}
+                      onChange={(event) => setTaskBank((current) => ({
+                        ...current,
+                        [taskPlan.category]: current[taskPlan.category].map((entry, entryIndex) => (
+                          entryIndex === index ? event.target.value : entry
+                        )),
+                      }))}
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="row">
+                <button
+                  type="button"
+                  onClick={() => setTaskBank((current) => ({
+                    ...current,
+                    [taskPlan.category]: [...current[taskPlan.category], 'Ny opgave'],
+                  }))}
+                >+ Tilføj tekst</button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setTaskBank((current) => ({
+                    ...current,
+                    [taskPlan.category]: [...DEFAULT_TASK_BANK[taskPlan.category]],
+                  }))}
+                >Gendan kategori</button>
+              </div>
+            </details>
           </div>
         </details>
 
@@ -3120,6 +3177,7 @@ export default function App() {
                   explicit: profile.notificationStyle === 'explicit',
                   partnerTitle: partnerDisplayName(profile),
                   plan: taskPlan,
+                  taskBank,
                 })
                 if (error) {
                   setAvailabilityNotice(error)

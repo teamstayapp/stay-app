@@ -9,6 +9,7 @@ const PANIC_DESTINATION_PREFIX = 'stay.panic-destination.'
 const MEMORY_PREFIX = 'stay.memory.'
 const AVAILABLE_PREFIX = 'stay.available.'
 const TASK_PLAN_PREFIX = 'stay.task-plan.'
+const TASK_BANK_PREFIX = 'stay.task-bank.'
 
 export type PanicDestinationMode = 'decoy' | 'weather' | 'calendar' | 'shortcut' | 'custom'
 
@@ -33,7 +34,60 @@ export interface DeviceMemory {
   last: string
 }
 
-export type TaskCategory = 'mix' | 'lingerie' | 'edge' | 'sissy' | 'protocol' | 'worship'
+export type TaskCategory = 'mix' | 'lingerie' | 'edge' | 'sissy' | 'protocol' | 'worship' | 'estim' | 'cei' | 'work'
+export type TaskBank = Record<TaskCategory, string[]>
+
+export const TASK_CATEGORIES: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship', 'estim', 'cei', 'work']
+
+export const DEFAULT_TASK_BANK: TaskBank = {
+  mix: [],
+  lingerie: [
+    'Tjek lingeriet. Sidder det som aftalt?',
+    'Trusser på. Skriv, når de sidder.',
+    'Strømper op. Små skridt.',
+  ],
+  edge: [
+    'Tyve langsomme ryk. Stop.',
+    'Hænderne væk i to minutter.',
+    'Edge. Du kommer ikke endnu.',
+  ],
+  sissy: [
+    'Paryk eller læbestift, hvis du har det. Vis det i chatten.',
+    'Trusserne bliver på. Pikken indenunder.',
+    'Gå som aftalt. Små skridt.',
+  ],
+  protocol: [
+    'Knæ. Sig titlen. Vent.',
+    'Hænderne i skødet. Vent på næste besked.',
+    'Titulér din partner i næste besked.',
+  ],
+  worship: [
+    'Tænk på partnerens fødder. Skriv det.',
+    'Kys luften. Du skylder en vrist senere.',
+    'Tilbed kort. Ingen hænder på dig selv endnu.',
+  ],
+  estim: [
+    'Brug kun færdigt e-stim-legetøj. Ét lavt hak op; stop straks ved smerte, svie eller følelsesløshed.',
+    'Skru e-stim ned og pust roligt ud.',
+    'E-stim slukket i to minutter. Hænderne væk.',
+    'E-stim på lavt niveau. Ingen elektroder på hoved, hals, bryst eller beskadiget hud.',
+  ],
+  cei: [
+    'Kondom på. Opsaml kun, hvis det er frivilligt og aftalt.',
+    'Tjek kondomet og skriv kort, hvad du ser.',
+    'Edge i kondomet. Ingen udløsning endnu.',
+    'Hvis du kom i kondomet: vent på næste besked. Brug kun frisk indhold og kassér det ved tvivl.',
+  ],
+  work: [
+    'Tjek diskret, at lingeriet sidder under tøjet. Ingen handling foran andre.',
+    'Hvis en plug allerede er sikker og behagelig, bliver den hvor den er. Stop ved smerte eller følelsesløshed.',
+    'Ingen berøring på arbejde eller offentligt. Vent, til du er helt privat.',
+    'Skriv “på plads”, når tøjet sidder diskret. Mere først, når du er privat.',
+  ],
+}
+DEFAULT_TASK_BANK.mix = TASK_CATEGORIES
+  .filter((category) => category !== 'mix')
+  .flatMap((category) => DEFAULT_TASK_BANK[category])
 
 export interface TaskPlan {
   category: TaskCategory
@@ -199,9 +253,8 @@ export function saveAvailability(userId: string, available: boolean): void {
 export function loadTaskPlan(userId: string): TaskPlan {
   try {
     const parsed = JSON.parse(localStorage.getItem(TASK_PLAN_PREFIX + userId) || '') as Partial<TaskPlan>
-    const categories: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship']
     return {
-      category: categories.includes(parsed.category as TaskCategory) ? parsed.category as TaskCategory : 'mix',
+      category: TASK_CATEGORIES.includes(parsed.category as TaskCategory) ? parsed.category as TaskCategory : 'mix',
       intervalMin: Math.max(5, Math.min(360, Number(parsed.intervalMin) || DEFAULT_TASK_PLAN.intervalMin)),
       count: Math.max(1, Math.min(24, Number(parsed.count) || DEFAULT_TASK_PLAN.count)),
       mode: parsed.mode === 'fixed' ? 'fixed' : 'random',
@@ -209,6 +262,36 @@ export function loadTaskPlan(userId: string): TaskPlan {
   } catch {
     return { ...DEFAULT_TASK_PLAN }
   }
+}
+
+export function loadTaskBank(userId: string): TaskBank {
+  const fallback = Object.fromEntries(
+    TASK_CATEGORIES.map((category) => [category, [...DEFAULT_TASK_BANK[category]]]),
+  ) as TaskBank
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TASK_BANK_PREFIX + userId) || '') as Partial<TaskBank>
+    for (const category of TASK_CATEGORIES) {
+      const entries = parsed[category]
+      if (!Array.isArray(entries)) continue
+      const cleaned = entries
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim().slice(0, 180))
+        .filter(Boolean)
+        .slice(0, 24)
+      if (cleaned.length) fallback[category] = cleaned
+    }
+  } catch {
+    // Standardteksterne bruges, hvis det lokale lager er beskadiget.
+  }
+  return fallback
+}
+
+export function saveTaskBank(userId: string, bank: TaskBank): void {
+  const safeBank = Object.fromEntries(TASK_CATEGORIES.map((category) => [
+    category,
+    (bank[category] || []).map((entry) => entry.trim().slice(0, 180)).filter(Boolean).slice(0, 24),
+  ]))
+  localStorage.setItem(TASK_BANK_PREFIX + userId, JSON.stringify(safeBank))
 }
 
 export function saveTaskPlan(userId: string, plan: TaskPlan): void {

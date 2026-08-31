@@ -797,6 +797,18 @@ button.partner-portrait:disabled { cursor: default; }
 }
 .active-task-actions button:disabled { opacity: 0.55; }
 
+.task-text-editor {
+  grid-column: 1 / -1;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: rgba(18, 13, 12, 0.55);
+}
+.task-text-editor summary { color: var(--accent-2); font: 700 0.76rem system-ui, sans-serif; cursor: pointer; }
+.task-text-list { display: grid; gap: 0.45rem; max-height: 22rem; margin: 0.75rem 0; overflow-y: auto; }
+.task-text-list .field { margin: 0; }
+.task-text-list input { font-size: 0.78rem; }
+
 @media (max-width: 28rem) {
   .active-task-card { grid-template-columns: 1fr; }
   .active-task-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }

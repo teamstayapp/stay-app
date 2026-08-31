@@ -11,6 +11,8 @@
 - Fri chat svarer først på brugerens spørgsmål og laver ikke automatisk hver besked om til en opgave.
 - Efter **Giv mig en ordre** vises den aktuelle opgave med **Opgave udført** og **Send foto**.
 - Nye billedposer: **På knæ i sele**, **Blonder bagfra** og **Futa / sele**.
+- Nye opgavekategorier: **E-stim**, **Kondom / CEI** og **Diskret ude**.
+- Opgavetekster kan redigeres og gendannes under **Opgaver i løbet af dagen**. De gemmes lokalt pr. konto og bruges i Web Push.
 
 ## Sådan lægges opdateringen ud
 

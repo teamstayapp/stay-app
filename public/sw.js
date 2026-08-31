@@ -1,4 +1,4 @@
-const CACHE = 'stay-v4'
+const CACHE = 'stay-v5'
 const APP_ROOT = new URL('./', self.registration.scope).href
 const PUSH_CONFIG_URL = new URL('stay-push-config', self.registration.scope).href
 
@@ -65,6 +65,24 @@ const TASK_BANK = {
     'Kys luften. Du skylder en vrist senere.',
     'Tilbed. Kort. Ingen hænder på dig selv endnu.',
   ],
+  estim: [
+    'Brug kun færdigt e-stim-legetøj. Ét lavt hak op; stop straks ved smerte, svie eller følelsesløshed.',
+    'Skru e-stim ned og pust roligt ud.',
+    'E-stim slukket i to minutter. Hænderne væk.',
+    'E-stim på lavt niveau. Ingen elektroder på hoved, hals, bryst eller beskadiget hud.',
+  ],
+  cei: [
+    'Kondom på. Opsaml kun, hvis det er frivilligt og aftalt.',
+    'Tjek kondomet og skriv kort, hvad du ser.',
+    'Edge i kondomet. Ingen udløsning endnu.',
+    'Hvis du kom i kondomet: vent på næste besked. Brug kun frisk indhold og kassér det ved tvivl.',
+  ],
+  work: [
+    'Tjek diskret, at lingeriet sidder under tøjet. Ingen handling foran andre.',
+    'Hvis en plug allerede er sikker og behagelig, bliver den hvor den er. Stop ved smerte eller følelsesløshed.',
+    'Ingen berøring på arbejde eller offentligt. Vent, til du er helt privat.',
+    'Skriv “på plads”, når tøjet sidder diskret. Mere først, når du er privat.',
+  ],
 }
 TASK_BANK.mix = Object.values(TASK_BANK).flat()
 
@@ -86,7 +104,10 @@ self.addEventListener('notificationclick', (event) => {
 async function showStayPush() {
   const settings = await readPushSettings()
   const category = TASK_BANK[settings.category] ? settings.category : 'mix'
-  const tasks = TASK_BANK[category]
+  const customTasks = Array.isArray(settings.taskBank?.[category])
+    ? settings.taskBank[category].filter((entry) => typeof entry === 'string' && entry.trim()).slice(0, 24)
+    : []
+  const tasks = customTasks.length ? customTasks : TASK_BANK[category]
   const task = tasks[Math.floor(Math.random() * tasks.length)] || 'Din næste opgave er klar.'
   const explicit = settings.explicit === true
   await self.registration.showNotification(explicit ? settings.partnerTitle : 'Stay', {
@@ -109,10 +130,11 @@ async function readPushSettings() {
         explicit: value.explicit === true,
         partnerTitle: value.partnerTitle === 'Master' ? 'Master' : 'Mistress',
         category: typeof value.category === 'string' ? value.category : 'mix',
+        taskBank: value.taskBank && typeof value.taskBank === 'object' ? value.taskBank : {},
       }
     }
   } catch {
     // Diskret standard bruges, hvis enhedens lokale indstilling ikke kan læses.
   }
-  return { explicit: false, partnerTitle: 'Stay', category: 'mix' }
+  return { explicit: false, partnerTitle: 'Stay', category: 'mix', taskBank: {} }
 }

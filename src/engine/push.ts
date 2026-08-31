@@ -1,4 +1,4 @@
-import type { TaskPlan } from './sessionStore'
+import type { TaskBank, TaskPlan } from './sessionStore'
 import { getFirebaseAuth } from './firebase'
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '')
@@ -9,6 +9,7 @@ interface PushSettings {
   explicit: boolean
   partnerTitle: string
   plan: TaskPlan
+  taskBank: TaskBank
 }
 
 export async function hasStayPushSubscription(): Promise<boolean> {
@@ -100,6 +101,7 @@ async function writePushSettings(settings: PushSettings): Promise<void> {
     explicit: settings.explicit,
     partnerTitle: settings.partnerTitle,
     category: settings.plan.category,
+    taskBank: settings.taskBank,
   }), { headers: { 'Content-Type': 'application/json' } }))
 }
 
