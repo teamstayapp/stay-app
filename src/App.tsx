@@ -222,6 +222,33 @@ function partnerDisplayName(profile: Pick<Profile, 'partnerName' | 'figure'>): s
   return profile.partnerName.trim() || (profile.figure === 'mistress' ? 'Mistress' : 'Master')
 }
 
+function PartnerAgeInput({ value, onChange }: { value: number; onChange: (age: number) => void }) {
+  const [draft, setDraft] = useState(String(value))
+
+  function commitAge() {
+    const parsed = Number.parseInt(draft, 10)
+    const next = Number.isFinite(parsed) ? Math.max(18, Math.min(80, parsed)) : value
+    setDraft(String(next))
+    if (next !== value) onChange(next)
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      enterKeyHint="done"
+      value={draft}
+      onFocus={(event) => event.currentTarget.select()}
+      onChange={(event) => setDraft(event.target.value.replace(/\D/g, '').slice(0, 2))}
+      onBlur={commitAge}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+      }}
+    />
+  )
+}
+
 export default function App() {
   const [phase, setPhase] = useState<Phase>('age')
   const [profile, setProfile] = useState<Profile>(emptyProfile)
@@ -2337,15 +2364,10 @@ export default function App() {
 
         <label className="field">
           Alder på AI-partner (18+)
-          <input
-            type="number"
-            min={18}
-            max={80}
+          <PartnerAgeInput
+            key={profile.partnerAge}
             value={profile.partnerAge}
-            onChange={(event) => setProfile({
-              ...profile,
-              partnerAge: Math.max(18, Math.min(80, Number(event.target.value) || 18)),
-            })}
+            onChange={(partnerAge) => setProfile((current) => ({ ...current, partnerAge }))}
           />
         </label>
         <p className="hint">Bruges til partnerens beskrivelse og billeder. Aldrig under 18.</p>

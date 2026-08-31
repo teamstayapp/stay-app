@@ -325,6 +325,10 @@ Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 - Mobil chatvisning, panikskærm, safeword og lokale sessioner.
 # Rettet samlet pakke — 31. august 2026
 
+- Aldersfeltet kan nu tømmes og overskrives på iPhone; værdien kontrolleres først, når feltet forlades.
+- Nye ord og minusord indsættes øverst i admin-ordbogen, og listen ruller automatisk op til det nye felt.
+- En fast “Til toppen”-knap vises på lange opsætnings- og adminsider efter scrolling.
+
 - Bygger videre på den seneste fungerende mobilchat med konto-/startside, lukbart kropskort, stort partnerbillede, partnernavn og faste positurer.
 - Bevarer alle eksisterende billeder og billedfiler.
 - Tilføjer adminredigerbar dansk plus-/minusordbog med søgning, tilføj, ændr, aktivér og slet.
@@ -332,3 +336,8 @@ Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 - Tilføjer valg af partneralder, BBC/BWC-kropsvalg og separat model til billedanalyse.
 - Synkroniserer `worker/src/index.ts` og den manuelle Cloudflare Worker.
 - Retter TypeScript-fejlen i Web Push, som gav rød build-fejl i den uploadede blandingspakke.
+# Mobilfelter og navigation — 31. august 2026
+
+- Alderfeltet kan nu tømmes og overskrives normalt på iPhone; 18–80 kontrolleres først, når feltet forlades.
+- Nye ord i både plus- og minusordbogen placeres øverst i den relevante liste.
+- En fast “Til toppen”-knap vises efter 500 pixels rulning på alle sider.

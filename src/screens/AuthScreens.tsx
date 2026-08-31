@@ -349,13 +349,26 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
 
   function addContentOption(kind: 'equipment' | 'fetishes' | 'words' | 'wordsMinus') {
     setContentNotice('')
+    if (kind === 'words' || kind === 'wordsMinus') setWordQuery('')
     setContentCatalog((current) => ({
       ...current,
-      [kind]: [
-        ...current[kind],
-        newContentOption(kind === 'equipment' ? 'equipment' : kind === 'words' || kind === 'wordsMinus' ? 'word' : 'fetish', current[kind].length),
-      ],
+      [kind]: kind === 'words' || kind === 'wordsMinus'
+        ? [
+            newContentOption('word', 0),
+            ...current[kind].map((item, order) => ({ ...item, order: order + 1 })),
+          ]
+        : [
+            ...current[kind],
+            newContentOption(kind === 'equipment' ? 'equipment' : 'fetish', current[kind].length),
+          ],
     }))
+    if (kind === 'words' || kind === 'wordsMinus') {
+      window.requestAnimationFrame(() => {
+        const list = document.querySelector<HTMLElement>(`[data-word-list="${kind}"]`)
+        list?.scrollTo({ top: 0, behavior: 'smooth' })
+        list?.querySelector<HTMLInputElement>('input')?.focus()
+      })
+    }
   }
 
   function removeContentOption(kind: 'equipment' | 'fetishes' | 'words' | 'wordsMinus', id: string) {
@@ -901,7 +914,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 </div>
                 <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('words') }}>+ Tilføj ord</button>
               </summary>
-              <div className="catalog-list catalog-list-words">
+              <div className="catalog-list catalog-list-words" data-word-list="words" data-scroll-top-target>
                 {contentCatalog.words.filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
                   <article className="catalog-row word-row" key={item.id}>
                     <label className="field">
@@ -929,7 +942,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 </div>
                 <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('wordsMinus') }}>+ Tilføj forbud</button>
               </summary>
-              <div className="catalog-list catalog-list-words">
+              <div className="catalog-list catalog-list-words" data-word-list="wordsMinus" data-scroll-top-target>
                 {contentCatalog.wordsMinus.filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
                   <article className="catalog-row word-row" key={item.id}>
                     <label className="field">
