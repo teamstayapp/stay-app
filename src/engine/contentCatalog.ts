@@ -84,7 +84,7 @@ const equipmentSeeds: EquipmentSeed[] = [
   ['latex_wear', 'Latex', 'Tøj og fetish', 'plus'],
   ['leather_wear', 'Læder', 'Tøj og fetish', 'plus'],
   ['gloves_fetish', 'Fetish-handsker', 'Tøj og fetish', 'plus'],
-  ['maid_outfit', 'Maid-outfit (voksen)', 'Tøj og fetish', 'plus', 'maid-outfit på en tydeligt voksen figur'],
+  ['maid_outfit', 'Maid-outfit (voksen)', 'Tøj og fetish', 'plus', 'maid-outfit på en tydeligt voksen figur; aldrig schoolgirl'],
   ['jock', 'Jockstrap', 'Tøj og fetish', 'plus'],
   ['panties', 'Trusser', 'Tøj og fetish', 'plus'],
   ['lipstick', 'Læbestift', 'Tøj og fetish', 'plus'],
@@ -114,7 +114,6 @@ const equipment = equipmentSeeds.map(([id, title, group, minimumPlan, prompt], o
   free: minimumPlan === 'free',
   order,
 }))
-
 
 const defaultWords: ContentOption[] = [
   ['pik', 'penis'],
@@ -258,6 +257,7 @@ const defaultWordsMinus: ContentOption[] = [
   id: `minus-${title}`,
   order, title, prompt, blurb: '', group: 'Minus', enabled: true, free: true, minimumPlan: 'free',
 }))
+
 export const DEFAULT_CONTENT_CATALOG: ContentCatalog = {
   version: CATALOG_VERSION,
   equipment,
@@ -277,7 +277,7 @@ export const DEFAULT_CONTENT_CATALOG: ContentCatalog = {
     { id: 'brat', title: 'Brat', blurb: 'Fræk mund. Du udfordrer. Partneren tæmmer.', prompt: 'Brugeren er brat: fræk, tester grænser. Du tæmmer med ordrer, ikke vold. Kort og skarp.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 13 },
     { id: 'protocol', title: 'Protocol', blurb: 'Knæ. Titel. Vent.', prompt: 'Høj protocol: knæ, titulér, vent på lov. Få ord.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 14 },
     { id: 'worship', title: 'Tilbed', blurb: 'Krop, hæle, slik. Ingen raceplay.', prompt: 'Fokusér på voksen worship, service og beundring.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 10 },
-    { id: 'roleskin', title: 'Kostume', blurb: 'Maid, uniform, voksen pet, voksen skolepige-kostume.', prompt: 'Voksne kostumer 25+. Skolepige er kostume på voksne, aldrig mindreårige.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 11 },
+    { id: 'roleskin', title: 'Kostume', blurb: 'Maid, uniform, voksen pet. Ikke skole.', prompt: 'Brug kun tydeligt voksne rolletemaer og aldrig barnlige eller mindreårige roller.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 11 },
     { id: 'sissy', title: 'Sissy', blurb: 'Lingeri, kjole, makeup. Voksen sissy-leg.', prompt: 'Voksen sissy-leg. Lingeri, ros, ydmyghed kun hvis slået til. Aldrig barnligt.', group: 'Ekstra', enabled: true, free: false, minimumPlan: 'plus', order: 12 },
   ],
 }

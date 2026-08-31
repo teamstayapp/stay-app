@@ -323,3 +323,12 @@ Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 - Privat session eller lagring på egen enhed.
 - Chatnavn, udstyrsvalg, samtalestil og eget ønske indgår i AI-prompten.
 - Mobil chatvisning, panikskærm, safeword og lokale sessioner.
+# Rettet samlet pakke — 31. august 2026
+
+- Bygger videre på den seneste fungerende mobilchat med konto-/startside, lukbart kropskort, stort partnerbillede, partnernavn og faste positurer.
+- Bevarer alle eksisterende billeder og billedfiler.
+- Tilføjer adminredigerbar dansk plus-/minusordbog med søgning, tilføj, ændr, aktivér og slet.
+- Sender den udgivne ordbog med til AI-chatten.
+- Tilføjer valg af partneralder, BBC/BWC-kropsvalg og separat model til billedanalyse.
+- Synkroniserer `worker/src/index.ts` og den manuelle Cloudflare Worker.
+- Retter TypeScript-fejlen i Web Push, som gav rød build-fejl i den uploadede blandingspakke.

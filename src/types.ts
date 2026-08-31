@@ -36,11 +36,10 @@ export type ProfessionId =
   | 'photographer'
   | 'pilot'
   | 'paramedic'
-  | 'schoolgirl'
   | 'milf'
 export type Personality = 'warm' | 'cold' | 'tease' | 'strict'
 export type Intensity = 'soft' | 'medium' | 'hard'
-export type Phase = 'age' | 'login' | 'admin' | 'rules' | 'setup' | 'pay' | 'session' | 'aftercare' | 'decoy'
+export type Phase = 'age' | 'login' | 'admin' | 'rules' | 'home' | 'setup' | 'pay' | 'session' | 'aftercare' | 'decoy'
 export type PrivacyMode = 'private' | 'device'
 export type NotificationStyle = 'discreet' | 'explicit'
 export type UserAnatomy = 'penis' | 'vulva'
@@ -61,6 +60,7 @@ export interface Limits {
 
 export interface Profile {
   chatName: string
+  partnerName: string
   partnerImageUrl?: string
   privacyMode: PrivacyMode
   notificationStyle: NotificationStyle
@@ -72,7 +72,6 @@ export interface Profile {
   userGender: UserGender
   attraction: Attraction
   partnerAge: number
-  partnerName: string
   cockPreset: CockPreset
   likeWords: string
   banWords: string

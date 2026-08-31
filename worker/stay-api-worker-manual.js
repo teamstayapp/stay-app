@@ -3,13 +3,25 @@ const VISION_MODEL = 'mistral-31-24b';
 const ALLOWED_MODELS = new Set([
     'venice-uncensored-role-play',
     'venice-uncensored-1-2',
+    'venice-uncensored',
+    'gemma-4-uncensored',
+    'llama-3.3-70b',
     'mistral-31-24b',
     'qwen3-vl-235b-a22b',
+]);
+const ALLOWED_VISION_MODELS = new Set([
+    'mistral-31-24b',
+    'qwen3-vl-235b-a22b',
+    'venice-uncensored-role-play',
 ]);
 const ALLOWED_IMAGE_MODELS = new Set([
     'grok-imagine-image',
     'lustify-v8',
+    'lustify-v7',
+    'lustify-sdxl',
     'venice-sd35',
+    'wai-Illustrious',
+    'chroma',
 ]);
 const PARTNER_POSE_MODEL = 'qwen-edit-uncensored';
 const EQUIPMENT_LABELS = {
@@ -228,47 +240,56 @@ async function generateImage(req, env, body) {
         return json(req, env, { error: usageGate.error }, usageGate.status);
     const profile = profileForPlan(body.profile, usageGate.gate.plan);
     const prompt = buildImagePrompt(profile, scene);
-    let venice;
-    try {
-        const sizing = imageModel === 'grok-imagine-image'
-            ? { aspect_ratio: '2:3', resolution: '1K' }
-            : { width: 768, height: 1152 };
-        venice = await fetch('https://api.venice.ai/api/v1/image/generate', {
-            method: 'POST',
-            signal: AbortSignal.timeout(75_000),
-            headers: {
-                Authorization: `Bearer ${env.VENICE_API_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: imageModel,
-                prompt,
-                negative_prompt: 'close-up, headshot, cropped body, cropped feet, body out of frame, black image, blank image, silhouette, underexposed, blurry, duplicate person, extra people, malformed anatomy, text, logo, watermark, childlike features, age ambiguity',
-                variants: 1,
-                format: 'webp',
-                return_binary: false,
-                safe_mode: profile.nsfw !== true,
-                seed: randomImageSeed(),
-                enhance_prompt: false,
-                ...sizing,
-            }),
-        });
+    const sizing = imageModel === 'grok-imagine-image'
+        ? { aspect_ratio: '2:3', resolution: '1K' }
+        : { width: 768, height: 1152 };
+    let imageUrl = '';
+    let lastError = 'Billedmodellen svarede med et tomt eller beskadiget billede.';
+    for (let attempt = 0; attempt < 2 && !imageUrl; attempt += 1) {
+        let venice;
+        try {
+            venice = await fetch('https://api.venice.ai/api/v1/image/generate', {
+                method: 'POST',
+                signal: AbortSignal.timeout(75_000),
+                headers: {
+                    Authorization: `Bearer ${env.VENICE_API_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: imageModel,
+                    prompt,
+                    negative_prompt: 'close-up, headshot, cropped body, cropped feet, body out of frame, black image, blank image, silhouette, underexposed, blurry, duplicate person, extra people, malformed anatomy, text, logo, watermark, childlike features, age ambiguity',
+                    variants: 1,
+                    format: 'webp',
+                    return_binary: false,
+                    safe_mode: profile.nsfw !== true,
+                    seed: randomImageSeed(),
+                    enhance_prompt: false,
+                    ...sizing,
+                }),
+            });
+        }
+        catch {
+            lastError = 'Billedmodellen kunne ikke kontaktes';
+            continue;
+        }
+        const data = (await venice.json().catch(() => null));
+        if (!venice.ok) {
+            lastError = veniceImageError(data, venice.status);
+            continue;
+        }
+        const compatibilityImage = data?.data?.[0];
+        const rawImage = data?.images?.[0] || compatibilityImage?.b64_json || compatibilityImage?.url || '';
+        const candidate = rawImage.startsWith('data:image/')
+            ? rawImage
+            : rawImage ? `data:image/webp;base64,${rawImage}` : '';
+        const encodedImage = candidate.includes(',') ? candidate.slice(candidate.indexOf(',') + 1) : '';
+        if (candidate && encodedImage.length >= 10_000 && /^[a-zA-Z0-9+/=]+$/.test(encodedImage)) {
+            imageUrl = candidate;
+        }
     }
-    catch {
-        return json(req, env, { error: 'Billedmodellen kunne ikke kontaktes' }, 504);
-    }
-    const data = (await venice.json().catch(() => null));
-    if (!venice.ok)
-        return json(req, env, { error: veniceImageError(data, venice.status) }, 502);
-    const compatibilityImage = data?.data?.[0];
-    const rawImage = data?.images?.[0] || compatibilityImage?.b64_json || compatibilityImage?.url || '';
-    const imageUrl = rawImage.startsWith('data:image/')
-        ? rawImage
-        : rawImage ? `data:image/webp;base64,${rawImage}` : '';
-    const encodedImage = imageUrl.includes(',') ? imageUrl.slice(imageUrl.indexOf(',') + 1) : '';
-    if (!imageUrl || encodedImage.length < 10_000 || !/^[a-zA-Z0-9+/=]+$/.test(encodedImage)) {
-        return json(req, env, { error: 'Billedmodellen svarede med et tomt eller beskadiget billede. Prøv igen.' }, 502);
-    }
+    if (!imageUrl)
+        return json(req, env, { error: `${lastError} Prøv igen.` }, 502);
     const recorded = await recordUsage(env, usageGate.gate, imageModel);
     if (!recorded)
         return json(req, env, { error: 'Billedet blev lavet, men forbruget kunne ikke registreres. Prøv igen.' }, 503);
@@ -343,9 +364,7 @@ async function analyzeImage(req, env, body) {
     if ('error' in sceneResult)
         return json(req, env, { error: sceneResult.error }, sceneResult.status);
     const scene = sceneResult.scene;
-    const selectedModel = ALLOWED_MODELS.has(scene.textModel) && scene.textModel !== MODEL && scene.textModel !== 'venice-uncensored-1-2'
-        ? scene.textModel
-        : VISION_MODEL;
+    const selectedModel = ALLOWED_VISION_MODELS.has(scene.visionModel) ? scene.visionModel : VISION_MODEL;
     const usageGate = await checkUsage(req, env, 'imageAnalysis');
     if ('error' in usageGate)
         return json(req, env, { error: usageGate.error }, usageGate.status);
@@ -477,6 +496,9 @@ function buildImagePrompt(profile, scene) {
         profile.freckles === true ? 'visible freckles' : '',
         profile.tattoos === true ? 'tasteful adult tattoos' : '',
         profile.wet === true ? 'glistening slightly wet skin' : '',
+        `clearly adult ${Math.max(18, Math.min(80, number(profile.partnerAge, 28)))} years old`,
+        safe(profile.cockPreset, 'none') === 'bbc' ? 'adult dark-skinned man, large penis, no text' : '',
+        safe(profile.cockPreset, 'none') === 'bwc' ? 'adult light-skinned man, large penis, no text' : '',
         lingerie ? `selected partner clothing: ${lingerie}` : '',
         plainText(profile.lookWish, '') ? `extra look notes: ${plainText(profile.lookWish, '').slice(0, 180)}` : '',
     ].filter(Boolean).join(', ');
@@ -1018,6 +1040,7 @@ async function loadScene(req, env, sceneId) {
                 id: sceneId,
                 textModel: MODEL,
                 imageModel: 'grok-imagine-image',
+                visionModel: VISION_MODEL,
                 systemPrompt: '',
                 nsfwSystemPrompt: '',
                 plusSystemPrompt: '',
@@ -1058,6 +1081,7 @@ async function loadScene(req, env, sceneId) {
             id: sceneId,
             textModel: safe(fields.textModel?.stringValue, MODEL),
             imageModel: safe(fields.imageModel?.stringValue, 'grok-imagine-image'),
+            visionModel: safe(fields.visionModel?.stringValue, VISION_MODEL),
             systemPrompt: safeLong(fields.systemPrompt?.stringValue, ''),
             nsfwSystemPrompt: safeLong(fields.nsfwSystemPrompt?.stringValue, ''),
             plusSystemPrompt: safeLong(fields.plusSystemPrompt?.stringValue, ''),
@@ -1155,7 +1179,8 @@ function buildSystemPrompt(profileValue, stateValue, scene, intent, equipmentCat
         'Svar ALTID på dansk. Aldrig engelsk i replikker. Kort og i rollen: 1-3 sætninger. Gentag ikke reglerne.',
         profile.nsfw === true
             ? [
-                'Spicy dansk ordliste — brug de frække ord, ikke kliniske:',
+                plainText(profile.spicyLexicon, '', 1_200) || 'Spicy dansk ordliste — brug de frække ord, ikke kliniske:',
+                plainText(profile.spicyMinus, '', 600) ? `Brug ALDRIG disse ord: ${plainText(profile.spicyMinus, '', 600)}.` : '',
                 'pik = penis; stiv = erektion; sprøjt/sæd/sperm = udløsning fra pik; komme = orgasme.',
                 'fisse = vagina/vulva; kusse = fisse; klit = klitoris; våd = ophidset fisse; slikke = oral på fisse.',
                 'bryster/patter = bryster; vorter = brystvorter; røv = baller/anus-område; hul = fisse eller røv efter kontekst.',
@@ -1175,6 +1200,7 @@ function buildSystemPrompt(profileValue, stateValue, scene, intent, equipmentCat
             ? 'Legen er gensidig. I rører begge. Reagér på begge udløsningsbarer. Du må beskrive at du også bliver tæt på.'
             : 'Legen er én vej. Hold fokus på brugerens krop og ordrer.',
         `Udløsningsbar partner: ${number(state.partnerHeat, 0)} af 100. Bruger: ${number(state.userHeat, 0)} af 100. Over 80 er tæt på. 100 er udløsning.`,
+        `Partneren er ${Math.max(18, Math.min(80, number(profile.partnerAge, 28)))} år og tydeligt voksen.`,
         `Figurens udseende: stil ${safe(profile.look, 'clothed')}, krop ${safe(profile.body, 'athletic')}, hud ${safe(profile.skin, 'olive')}. ${anatomy}`,
         PROFESSION_CHAT[safe(profile.profession, 'none')] || '',
         `Brugerens valgte anatomi til direkte kropssvar: ${userAnatomyLabel}. Antag ikke køn ud fra dette valg.`,
@@ -1203,6 +1229,11 @@ function buildSystemPrompt(profileValue, stateValue, scene, intent, equipmentCat
         fetishIds.includes('worship')
             ? 'Worship: fødder, røv, bryster. De slikker og kysser der du peger.'
             : '',
+        safe(profile.cockPreset, 'none') === 'bbc'
+            ? 'Partneren er en voksen mørk mand med tyk pik. Beskriv krop, ikke raceleg. Ingen nedsættende ord.'
+            : safe(profile.cockPreset, 'none') === 'bwc'
+                ? 'Partneren er en voksen lys mand med tyk pik. Beskriv krop, ikke raceleg. Ingen nedsættende ord.'
+                : '',
         plainText(profile.memoryNotes, '')
             ? `Du må huske dette om brugeren og bruge det naturligt uden at recitere listen: ${plainText(profile.memoryNotes, '', 600)}.`
             : '',

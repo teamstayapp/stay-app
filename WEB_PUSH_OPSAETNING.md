@@ -13,6 +13,16 @@ Kør lokalt:
 npx web-push generate-vapid-keys
 ```
 
+På Windows PowerShell kan scriptpolitikken blokere `npx.ps1`. Brug da denne
+kommando i PowerShell:
+
+```powershell
+npx.cmd web-push generate-vapid-keys
+```
+
+Kommandoen skal køres i PowerShell/Terminal — ikke inde i Node-vinduet med
+prompten `>`.
+
 Gem både den offentlige og private nøgle. Den private nøgle må aldrig lægges i
 GitHub eller i appens kildekode.
 
@@ -62,4 +72,3 @@ iPhones notifikationsindstillinger.
 - Worker sender et tomt, VAPID-godkendt push-signal.
 - Service Workeren vælger lokalt en diskret eller konkret tekst.
 - Døde abonnementer slettes automatisk, når push-tjenesten svarer 404 eller 410.
-

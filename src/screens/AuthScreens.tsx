@@ -727,7 +727,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
               </label>
               <label className="field">
                 Billedanalyse
-                <select value={selectedScene.visionModel || 'mistral-31-24b'} onChange={(e) => updateSelected({ visionModel: e.target.value })}>
+                <select value={selectedScene.visionModel} onChange={(e) => updateSelected({ visionModel: e.target.value })}>
                   {VISION_MODELS.map((model) => (
                     <option key={model.id} value={model.id}>{model.title}</option>
                   ))}
@@ -885,35 +885,35 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
               <div>
                 <p className="kicker">Kun admin</p>
                 <h2>Ordbog</h2>
-                <small>{(contentCatalog.words?.length || 0) + (contentCatalog.wordsMinus?.length || 0)} ord · lukket til du trykker</small>
+                <small>{contentCatalog.words.length + contentCatalog.wordsMinus.length} ord · tryk for at åbne</small>
               </div>
             </summary>
-            <p className="hint">Brugere ser ikke listerne. Chatten får kun de aktive ord efter “Gem og udgiv”.</p>
+            <p className="hint">Brugerne ser ikke listerne. Chatten får kun de aktive ord efter “Gem og udgiv”.</p>
             <label className="field">
               Søg i listerne
-              <input value={wordQuery} placeholder="pik, kuk, edge…" onChange={(e) => setWordQuery(e.target.value)} />
+              <input value={wordQuery} placeholder="Søg efter et ord…" onChange={(event) => setWordQuery(event.target.value)} />
             </label>
             <details className="catalog-fold inner-fold">
               <summary className="catalog-heading">
                 <div>
                   <h2>Frække ord</h2>
-                  <small>{contentCatalog.words?.length || 0} plus</small>
+                  <small>{contentCatalog.words.length} plus</small>
                 </div>
-                <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('words') }}>+ Tilføj ord</button>
+                <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('words') }}>+ Tilføj ord</button>
               </summary>
               <div className="catalog-list catalog-list-words">
-                {(contentCatalog.words || []).filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
+                {contentCatalog.words.filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
                   <article className="catalog-row word-row" key={item.id}>
                     <label className="field">
                       Ord
-                      <input value={item.title} maxLength={40} onChange={(e) => updateContentOption('words', item.id, { title: e.target.value })} />
+                      <input value={item.title} maxLength={40} onChange={(event) => updateContentOption('words', item.id, { title: event.target.value })} />
                     </label>
                     <label className="field">
                       Betydning
-                      <input value={item.prompt} maxLength={160} onChange={(e) => updateContentOption('words', item.id, { prompt: e.target.value })} />
+                      <input value={item.prompt} maxLength={160} onChange={(event) => updateContentOption('words', item.id, { prompt: event.target.value })} />
                     </label>
                     <label className="toggle-field">
-                      <input type="checkbox" checked={item.enabled} onChange={(e) => updateContentOption('words', item.id, { enabled: e.target.checked })} />
+                      <input type="checkbox" checked={item.enabled} onChange={(event) => updateContentOption('words', item.id, { enabled: event.target.checked })} />
                       Aktiv
                     </label>
                     <button className="safe" onClick={() => removeContentOption('words', item.id)}>Slet</button>
@@ -925,23 +925,23 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
               <summary className="catalog-heading">
                 <div>
                   <h2>Brug ikke</h2>
-                  <small>{contentCatalog.wordsMinus?.length || 0} minus</small>
+                  <small>{contentCatalog.wordsMinus.length} minus</small>
                 </div>
-                <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('wordsMinus') }}>+ Tilføj forbud</button>
+                <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('wordsMinus') }}>+ Tilføj forbud</button>
               </summary>
               <div className="catalog-list catalog-list-words">
-                {(contentCatalog.wordsMinus || []).filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
+                {contentCatalog.wordsMinus.filter((item) => !wordQuery.trim() || `${item.title} ${item.prompt}`.toLowerCase().includes(wordQuery.trim().toLowerCase())).map((item) => (
                   <article className="catalog-row word-row" key={item.id}>
                     <label className="field">
                       Ord
-                      <input value={item.title} maxLength={40} onChange={(e) => updateContentOption('wordsMinus', item.id, { title: e.target.value })} />
+                      <input value={item.title} maxLength={40} onChange={(event) => updateContentOption('wordsMinus', item.id, { title: event.target.value })} />
                     </label>
                     <label className="field">
                       Erstat med
-                      <input value={item.prompt} maxLength={160} onChange={(e) => updateContentOption('wordsMinus', item.id, { prompt: e.target.value })} />
+                      <input value={item.prompt} maxLength={160} onChange={(event) => updateContentOption('wordsMinus', item.id, { prompt: event.target.value })} />
                     </label>
                     <label className="toggle-field">
-                      <input type="checkbox" checked={item.enabled} onChange={(e) => updateContentOption('wordsMinus', item.id, { enabled: e.target.checked })} />
+                      <input type="checkbox" checked={item.enabled} onChange={(event) => updateContentOption('wordsMinus', item.id, { enabled: event.target.checked })} />
                       Aktiv
                     </label>
                     <button className="safe" onClick={() => removeContentOption('wordsMinus', item.id)}>Slet</button>
@@ -958,7 +958,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 <h2>Udstyr</h2>
                 <small>{contentCatalog.equipment.length} felter · tryk for at åbne</small>
               </div>
-              <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('equipment') }}>+ Tilføj udstyr</button>
+              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('equipment') }}>+ Tilføj udstyr</button>
             </summary>
             <div className="catalog-list">
               {contentCatalog.equipment.map((item) => (
@@ -1024,7 +1024,7 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
                 <h2>Temaer / fetish</h2>
                 <small>{contentCatalog.fetishes.length} felter · tryk for at åbne</small>
               </div>
-              <button type="button" className="chip on" onClick={(e) => { e.preventDefault(); addContentOption('fetishes') }}>+ Tilføj tema</button>
+              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('fetishes') }}>+ Tilføj tema</button>
             </summary>
             <div className="catalog-list">
               {contentCatalog.fetishes.map((item) => (
