@@ -1,4 +1,5 @@
 import type { TaskBank, TaskPlan } from './sessionStore'
+import type { DayBlock } from './frue'
 import { getFirebaseAuth } from './firebase'
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/$/, '')
@@ -10,6 +11,7 @@ interface PushSettings {
   partnerTitle: string
   plan: TaskPlan
   taskBank: TaskBank
+  dayPlan: DayBlock[]
 }
 
 export async function hasStayPushSubscription(): Promise<boolean> {
@@ -38,7 +40,7 @@ export async function subscribeStayPush(settings: PushSettings): Promise<string>
       applicationServerKey: base64UrlToBytes(VAPID_PUBLIC),
     })
     await writePushSettings(settings)
-    return await sendSubscription(subscription, settings.plan)
+    return await sendSubscription(subscription, settings)
   } catch (error) {
     return error instanceof Error ? error.message : 'Web Push kunne ikke aktiveres.'
   }
@@ -51,7 +53,7 @@ export async function updateStayPush(settings: PushSettings): Promise<string> {
     const registration = await navigator.serviceWorker.ready
     const subscription = await registration.pushManager.getSubscription()
     if (!subscription) return 'Web Push er ikke aktiv på denne enhed.'
-    return await sendSubscription(subscription, settings.plan)
+    return await sendSubscription(subscription, settings)
   } catch {
     return 'Web Push-indstillingerne kunne ikke opdateres.'
   }
@@ -78,9 +80,10 @@ export async function unsubscribeStayPush(): Promise<string> {
   }
 }
 
-async function sendSubscription(subscription: PushSubscription, plan: TaskPlan): Promise<string> {
+async function sendSubscription(subscription: PushSubscription, settings: PushSettings): Promise<string> {
   const token = await getFirebaseAuth()?.currentUser?.getIdToken()
   if (!token) return 'Log ind igen for at aktivere Web Push.'
+  const plan = settings.plan
   const response = await fetch(`${API_URL}/push/subscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -89,6 +92,10 @@ async function sendSubscription(subscription: PushSubscription, plan: TaskPlan):
       intervalMin: plan.intervalMin,
       count: plan.count,
       mode: plan.mode,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Copenhagen',
+      daySchedule: settings.dayPlan
+        .filter((block) => block.accepted)
+        .map((block) => ({ id: block.id, title: block.title, text: block.text, time: block.time })),
     }),
   })
   const data = await response.json().catch(() => null) as { error?: string } | null
@@ -103,6 +110,7 @@ async function writePushSettings(settings: PushSettings): Promise<void> {
     category: settings.plan.category,
     categories: settings.plan.categories,
     taskBank: settings.taskBank,
+    dayPlan: settings.dayPlan.filter((block) => block.accepted),
   }), { headers: { 'Content-Type': 'application/json' } }))
 }
 

@@ -310,6 +310,7 @@ export default function App() {
   const [stageOpen, setStageOpen] = useState(false)
   const [fullScreenImage, setFullScreenImage] = useState<{ url: string; alt: string } | null>(null)
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false)
+  const [setupSection, setSetupSection] = useState<'scene' | 'partner' | 'content' | 'tasks' | 'frue' | 'privacy'>('scene')
   const [edgeMode, setEdgeMode] = useState<'idle' | 'play' | 'hold'>('idle')
   const [edgeLeft, setEdgeLeft] = useState(0)
   const [strokeLeft, setStrokeLeft] = useState(0)
@@ -594,10 +595,11 @@ export default function App() {
       partnerTitle: profile.partnerName.trim() || (profile.figure === 'mistress' ? 'Mistress' : 'Master'),
       plan: taskPlan,
       taskBank,
+      dayPlan: frue.dayPlan,
     }).then((error) => {
       if (error) setAvailabilityNotice(error)
     })
-  }, [account, availableOn, deviceSettingsUserId, frue.status.place, frue.workMode, profile.figure, profile.notificationStyle, profile.partnerName, taskBank, taskPlan])
+  }, [account, availableOn, deviceSettingsUserId, frue.dayPlan, frue.status.place, frue.workMode, profile.figure, profile.notificationStyle, profile.partnerName, taskBank, taskPlan])
 
   useEffect(() => {
     if (!account || profile.privacyMode !== 'device' || (phase !== 'session' && phase !== 'aftercare')) return
@@ -2030,38 +2032,61 @@ export default function App() {
     const currentPlan = PLANS.find((item) => item.id === entitlement.plan) ?? PLANS[0]
     return (
       <main className="shell">
-        <p className="kicker">Tilpas partner</p>
-        <div className="row">
-          <button className="ghost" onClick={() => setPhase('home')}>
-            Startside
-          </button>
-          <button className="ghost" onClick={() => openRules('setup')}>
-            Regler
-          </button>
-          {account?.role === 'admin' && (
-            <button className="ghost" onClick={() => setPhase('admin')}>
-              Admin
-            </button>
-          )}
-          <button className="ghost" onClick={panic}>
-            Noter
-          </button>
-          <button
-            className="ghost"
-            onClick={() => {
-              logout()
-              setAccount(null)
-              setPhase('login')
-            }}
-          >
-            Log ud
-          </button>
+        <div className="setup-topline">
+          <p className="kicker">Tilpas partner</p>
+          <details className="setup-page-menu">
+            <summary>☰ Menu</summary>
+            <div>
+              <button className="ghost" onClick={() => setPhase('home')}>Startside</button>
+              <button className="ghost" onClick={() => openRules('setup')}>Regler</button>
+              {account?.role === 'admin' && <button className="ghost" onClick={() => setPhase('admin')}>Admin</button>}
+              <button className="ghost" onClick={panic}>Noter</button>
+              <button
+                className="ghost"
+                onClick={() => {
+                  logout()
+                  setAccount(null)
+                  setPhase('login')
+                }}
+              >Log ud</button>
+            </div>
+          </details>
         </div>
         <h1>Tilpas alle valg</h1>
         <p className="lede">
-          Her finder du hele opsætningen. Dine valg bruges næste gang, du starter eller fortsætter en chat.
+          Vælg et område ad gangen. Alle tidligere funktioner er stadig med.
         </p>
 
+        <nav className="setup-section-nav" aria-label="Områder i opsætningen">
+          {([
+            ['scene', 'Scene'],
+            ['partner', 'Partner'],
+            ['content', 'Indhold'],
+            ['tasks', 'Opgaver'],
+            ['frue', 'Frue'],
+            ['privacy', 'Privatliv'],
+          ] as const).map(([id, title]) => (
+            <button
+              key={id}
+              type="button"
+              className={setupSection === id ? 'on' : ''}
+              aria-pressed={setupSection === id}
+              onClick={() => {
+                setSetupSection(id)
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+            >{title}</button>
+          ))}
+        </nav>
+
+        <section className="setup-current-summary" aria-label="Aktuelle valg">
+          <span>{selectedScene?.title || 'Scene'}</span>
+          <span>{partnerDisplayName(profile)}</span>
+          <span>{profile.intensity === 'soft' ? 'Blød' : profile.intensity === 'hard' ? 'Hård' : 'Medium'}</span>
+          <span>{profile.nsfw ? 'Fræk' : 'Tøjet på'}</span>
+        </section>
+
+        {setupSection === 'privacy' && (<>
         <label className="field chat-name-field">
           Dit chatnavn
           <input
@@ -2156,12 +2181,14 @@ export default function App() {
           )}
           <p className="privacy-note">Valget slås aldrig til automatisk. Du godkender også hver påmindelse, før den planlægges.</p>
         </section>
+        </>)}
 
-        <details className="setup-fold task-plan-settings">
+        {setupSection === 'tasks' && (
+        <details className="setup-fold task-plan-settings" open>
           <summary>
             <span className="setup-fold-title">
-              <strong>Opgaver i løbet af dagen</strong>
-              <small>Vælg type, rytme og antal beskeder</small>
+              <strong>Intervalopgaver</strong>
+              <small>Tilfældige eller gentagne opgaver i løbet af dagen</small>
             </span>
             <span className="setup-fold-count">{taskPlan.count} stk.</span>
           </summary>
@@ -2311,8 +2338,10 @@ export default function App() {
             </section>
           </div>
         </details>
+        )}
 
-        <details className="setup-fold frue-settings">
+        {setupSection === 'frue' && (
+        <details className="setup-fold frue-settings" open>
           <summary>
             <span className="setup-fold-title">
               <strong>Frue</strong>
@@ -2359,20 +2388,34 @@ export default function App() {
             )}
             <p className="hint">Dage siden registreret udløsning: {daysSinceOrgasm(frue.lastOrgasmAt)}. Safeword stopper altid scenen.</p>
 
-            <h3>Heldagsplan</h3>
+            <h3>Heldagsplan — faste tider</h3>
             {frue.dayPlan.map((block) => (
-              <label key={block.id} className={block.accepted ? 'privacy-option on' : 'privacy-option'}>
-                <input
-                  type="checkbox"
-                  checked={block.accepted}
-                  onChange={(event) => setFrue((current) => ({
-                    ...current,
-                    dayPlan: current.dayPlan.map((row) => row.id === block.id ? { ...row, accepted: event.target.checked } : row),
-                  }))}
-                />
-                <span><strong>{block.title}</strong><small>{block.text}</small></span>
-              </label>
+              <div key={block.id} className={block.accepted ? 'day-plan-row on' : 'day-plan-row'}>
+                <label className="day-plan-choice">
+                  <input
+                    type="checkbox"
+                    checked={block.accepted}
+                    onChange={(event) => setFrue((current) => ({
+                      ...current,
+                      dayPlan: current.dayPlan.map((row) => row.id === block.id ? { ...row, accepted: event.target.checked } : row),
+                    }))}
+                  />
+                  <span><strong>{block.title}</strong><small>{block.text}</small></span>
+                </label>
+                <label className="day-plan-time">
+                  <span>Tid</span>
+                  <input
+                    type="time"
+                    value={block.time}
+                    onChange={(event) => setFrue((current) => ({
+                      ...current,
+                      dayPlan: current.dayPlan.map((row) => row.id === block.id ? { ...row, time: event.target.value } : row),
+                    }))}
+                  />
+                </label>
+              </div>
             ))}
+            <p className="privacy-note">Valgte perioder sendes på klokkeslættet som Web Push, når “Til rådighed” er slået til. Søndag sendes kun om søndagen.</p>
             <label className="field">
               <span>Lektie til næste session</span>
               <textarea
@@ -2453,7 +2496,9 @@ export default function App() {
             <p className="hint">Dagbogen gemmes kun lokalt og er ikke medicinsk rådgivning.</p>
           </div>
         </details>
+        )}
 
+        {setupSection === 'privacy' && (
         <details className="setup-fold panic-settings">
           <summary>
             <span className="setup-fold-title">
@@ -2533,7 +2578,10 @@ export default function App() {
             </p>
           </div>
         </details>
+        )}
 
+        {setupSection === 'scene' && (<>
+        <h2>Vælg scene</h2>
         <div className="scene-grid">
           {scenes.map((scene) => (
             <button
@@ -2642,7 +2690,15 @@ export default function App() {
             <button key={id} type="button" className={profile.attraction === id ? 'chip on' : 'chip'} onClick={() => setProfile({ ...profile, attraction: id })}>{title}</button>
           ))}
         </div>
+        </>)}
 
+        {setupSection === 'partner' && (<>
+        <details className="setup-fold partner-config-fold" open>
+          <summary>
+            <span className="setup-fold-title"><strong>Identitet og billedstil</strong><small>Partner, voksenindhold, pose og uniform</small></span>
+            <span className="setup-fold-count">{profile.figure === 'mistress' ? 'Frue' : 'Master'}</span>
+          </summary>
+          <div className="setup-fold-content">
         <h2>Figur (fiktiv voksen)</h2>
         <div className="row">
           {(['mistress', 'master'] as Figure[]).map((f) => (
@@ -2758,7 +2814,15 @@ export default function App() {
             </button>
           ))}
         </div>
+          </div>
+        </details>
 
+        <details className="setup-fold partner-config-fold">
+          <summary>
+            <span className="setup-fold-title"><strong>Udseende og krop</strong><small>Alder, hår, krop og detaljer</small></span>
+            <span className="setup-fold-count">{profile.partnerAge} år</span>
+          </summary>
+          <div className="setup-fold-content">
         <h2>Krop</h2>
         <div className="row">
           {(['slim', 'athletic', 'solid'] as Body[]).map((b) => (
@@ -2960,7 +3024,15 @@ export default function App() {
           />
         </label>
         <p className="hint">Bruges til partnerens beskrivelse og billeder. Aldrig under 18.</p>
+          </div>
+        </details>
 
+        <details className="setup-fold partner-config-fold">
+          <summary>
+            <span className="setup-fold-title"><strong>Billeder og galleri</strong><small>Skab, lås, genbrug og gem billeder</small></span>
+            <span className="setup-fold-count">{imageGenerationsLeft} tilbage</span>
+          </summary>
+          <div className="setup-fold-content">
         <section className="partner-image-builder" aria-live="polite">
           <div className={profile.partnerImageUrl ? 'generated-partner-image' : 'generated-partner-image empty'}>
             {profile.partnerImageUrl ? (
@@ -3101,7 +3173,17 @@ export default function App() {
           </div>
         )}
         {imageNotice && <p className="form-message">{imageNotice}</p>}
+          </div>
+        </details>
+        </>)}
 
+        {setupSection === 'content' && (<>
+        <details className="setup-fold content-config-fold" open>
+          <summary>
+            <span className="setup-fold-title"><strong>Personlighed og intensitet</strong><small>Samtalestil, hukommelse og niveau</small></span>
+            <span className="setup-fold-count">{profile.intensity === 'soft' ? 'Blød' : profile.intensity === 'hard' ? 'Hård' : 'Medium'}</span>
+          </summary>
+          <div className="setup-fold-content">
         <h2>Hvordan skal AI-partneren være?</h2>
         <p className="hint">Vælg en grundstil, eller skriv dit eget ønske nedenunder.</p>
         <div className="row">
@@ -3157,6 +3239,8 @@ export default function App() {
           ))}
         </div>
         <p className="hint">{intensityHint(profile.intensity)}</p>
+          </div>
+        </details>
 
         <details className="setup-fold equipment-fold">
           <summary>
@@ -3221,8 +3305,12 @@ export default function App() {
           </div>
         </details>
 
-        
-
+        <details className="setup-fold content-config-fold">
+          <summary>
+            <span className="setup-fold-title"><strong>Lingeri og tøj</strong><small>Hvad du og partneren har på</small></span>
+            <span className="setup-fold-count">{profile.lingerieUser.length + profile.lingeriePartner.length} valgt</span>
+          </summary>
+          <div className="setup-fold-content">
         <h2>Lingeri og sissy</h2>
         <p className="hint">Hvad har du på, og hvad har partneren på.</p>
         <p className="hint">Dig</p>
@@ -3257,7 +3345,15 @@ export default function App() {
             >{title}</button>
           ))}
         </div>
+          </div>
+        </details>
 
+        <details className="setup-fold content-config-fold">
+          <summary>
+            <span className="setup-fold-title"><strong>Temaer, ord og grænser</strong><small>Fetish, plus/minusord og safeword</small></span>
+            <span className="setup-fold-count">{profile.fetishes.length} temaer</span>
+          </summary>
+          <div className="setup-fold-content">
         <h2>Ord chatten må bruge</h2>
         <label className="field">
           Plus-liste
@@ -3323,20 +3419,25 @@ export default function App() {
           />
           Ingen øgenavne — også hvis humiliation er slået til
         </label>
+          </div>
+        </details>
 
         <p className="hint">
           Plan: {profile.plan} · chat tilbage i dag: {chatMessagesLeft} · figurbilleder tilbage: {imageGenerationsLeft}
           {' '}· billedanalyser tilbage: {imageAnalysesLeft}
         </p>
+        </>)}
+
+        <div className="setup-finish-bar">
+          <span>{selectedScene?.title || 'Scene'} · {partnerDisplayName(profile)}</span>
+          <button className="primary" onClick={startSession}>Start scene</button>
+        </div>
         <div className="row">
           <button className="ghost" onClick={() => setPhase('pay')}>
             Abonnement
           </button>
           <button className="ghost" onClick={() => setShopOpen(true)}>
             Butik ({locked.length} låst)
-          </button>
-          <button className="primary" onClick={startSession}>
-            Start scene
           </button>
         </div>
 
@@ -3520,9 +3621,6 @@ export default function App() {
           )}
         </div>
         <div className="session-menu-row">
-          <button type="button" className="session-menu-toggle" onClick={() => { setSessionMenuOpen(false); setPhase('setup') }}>
-            ← Menu
-          </button>
           <button
             type="button"
             className="session-menu-toggle"
@@ -3530,15 +3628,19 @@ export default function App() {
             aria-controls="session-side-menu"
             onClick={() => setSessionMenuOpen((open) => !open)}
           >
-            ☰ Scene
+            ☰ Menu
           </button>
         </div>
         <aside id="session-side-menu" className={sessionMenuOpen ? 'session-side-menu open' : 'session-side-menu'}>
           <div className="session-side-head">
-            <strong>Scene og indstillinger</strong>
-            <button type="button" onClick={() => { setSessionMenuOpen(false); setPhase('setup') }}>← Opsætning</button>
+            <strong>Menu</strong>
             <button type="button" onClick={() => setSessionMenuOpen(false)}>× Luk</button>
           </div>
+          <nav className="session-side-nav" aria-label="Chatnavigation">
+            <button type="button" onClick={() => { setSessionMenuOpen(false); setPhase('setup') }}>Tilpas scene</button>
+            <button type="button" onClick={() => { setSessionMenuOpen(false); setPhase('home') }}>Startside</button>
+            <button type="button" onClick={() => { setSessionMenuOpen(false); openRules('session') }}>Regler</button>
+          </nav>
           <div className="chat-tools">
           <button className="note-button" onClick={panic}>Noter</button>
           <button
@@ -3577,6 +3679,7 @@ export default function App() {
                   partnerTitle: partnerDisplayName(profile),
                   plan: taskPlan,
                   taskBank,
+                  dayPlan: frue.dayPlan,
                 })
                 if (error) {
                   setAvailabilityNotice(error)

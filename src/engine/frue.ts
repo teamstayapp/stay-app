@@ -27,6 +27,7 @@ export interface DayBlock {
   id: string
   title: string
   text: string
+  time: string
   accepted: boolean
   done: boolean
 }
@@ -55,13 +56,13 @@ export const defaultStatus = (): LiveStatus => ({
 })
 
 export const defaultDayPlan = (): DayBlock[] => [
-  { id: 'morgen', title: 'Morgen', text: 'Vinget plug + trusser under tøjet.', accepted: false, done: false },
-  { id: 'formiddag', title: 'Formiddag', text: 'Kegels rundt om pluggen.', accepted: false, done: false },
-  { id: 'middag', title: 'Middag', text: 'Tjek-ind. Kort.', accepted: false, done: false },
-  { id: 'eftermiddag', title: 'Eftermiddag', text: 'Større plug kun hvis du er alene.', accepted: false, done: false },
-  { id: 'aften', title: 'Aften', text: 'Edge i kondom. Ingen udløsning uden lov.', accepted: false, done: false },
-  { id: 'nat', title: 'Nat', text: 'Sov med plug. Hænderne væk.', accepted: false, done: false },
-  { id: 'sondag', title: 'Søndag', text: 'Tilladelse eller ny denial-uge.', accepted: false, done: false },
+  { id: 'morgen', title: 'Morgen', text: 'Vinget plug + trusser under tøjet.', time: '07:30', accepted: false, done: false },
+  { id: 'formiddag', title: 'Formiddag', text: 'Kegels rundt om pluggen.', time: '10:00', accepted: false, done: false },
+  { id: 'middag', title: 'Middag', text: 'Tjek-ind. Kort.', time: '12:30', accepted: false, done: false },
+  { id: 'eftermiddag', title: 'Eftermiddag', text: 'Større plug kun hvis du er alene.', time: '16:00', accepted: false, done: false },
+  { id: 'aften', title: 'Aften', text: 'Edge i kondom. Ingen udløsning uden lov.', time: '20:00', accepted: false, done: false },
+  { id: 'nat', title: 'Nat', text: 'Sov med plug. Hænderne væk.', time: '22:30', accepted: false, done: false },
+  { id: 'sondag', title: 'Søndag', text: 'Tilladelse eller ny denial-uge.', time: '10:00', accepted: false, done: false },
 ]
 
 export function defaultFrueState(): FrueState {
@@ -108,7 +109,15 @@ function migrateStatus(status: Omit<LiveStatus, 'plug'> & { plug?: PlugSize | bo
 function mergeDayPlan(value: unknown): DayBlock[] {
   const incoming = Array.isArray(value) ? value as DayBlock[] : []
   const byId = new Map(incoming.map((row) => [row.id, row]))
-  return defaultDayPlan().map((block) => byId.get(block.id) ?? block)
+  return defaultDayPlan().map((block) => {
+    const saved = byId.get(block.id)
+    if (!saved) return block
+    return {
+      ...block,
+      ...saved,
+      time: /^([01]\d|2[0-3]):[0-5]\d$/.test(saved.time || '') ? saved.time : block.time,
+    }
+  })
 }
 
 export function statusLine(status: LiveStatus): string {

@@ -17,8 +17,9 @@ plug-dagbog og nye Plus-prompts i den eksisterende Stay-app.
   billedprompts og tydelig adskillelse fra rigtig lægehjælp.
 - Chatstatus kan vise vorter som fri, klemt eller e-stim, og hurtigmenuen har
   knapper til tilladelser, plugskift, e-stim-stop, bevis og færdig rapport.
-- Heldagsplanen indeholder nu morgen, formiddag, middag, eftermiddag, aften,
-  nat og søndag.
+- Heldagsplanen indeholder morgen, formiddag, middag, eftermiddag, aften, nat
+  og søndag. Hver valgt periode har et klokkeslæt og sendes som Web Push, når
+  “Til rådighed” er slået til. Søndag gentages kun om søndagen.
 - **Aktuel opgave → Ikke fuldført** afslutter opgaven og lader AI-partneren
   reagere uden at gætte på årsagen.
 

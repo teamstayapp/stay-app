@@ -1,4 +1,4 @@
-const CACHE = 'stay-v15'
+const CACHE = 'stay-v17'
 const APP_ROOT = new URL('./', self.registration.scope).href
 const PUSH_CONFIG_URL = new URL('stay-push-config', self.registration.scope).href
 
@@ -118,6 +118,7 @@ self.addEventListener('notificationclick', (event) => {
 
 async function showStayPush() {
   const settings = await readPushSettings()
+  const heldags = await dueHeldagsTask(settings.dayPlan || [])
   const availableCategories = [...new Set([...Object.keys(TASK_BANK), ...Object.keys(settings.taskBank || {})])]
   const categoryExists = (category) => availableCategories.includes(category)
   const selected = Array.isArray(settings.categories)
@@ -137,13 +138,13 @@ async function showStayPush() {
     }
     return TASK_BANK[category] || []
   })
-  const task = tasks[Math.floor(Math.random() * tasks.length)] || 'Din næste opgave er klar.'
+  const task = heldags?.text || tasks[Math.floor(Math.random() * tasks.length)] || 'Din næste opgave er klar.'
   const explicit = settings.explicit === true
   await self.registration.showNotification(explicit ? settings.partnerTitle : 'Stay', {
     body: explicit ? task : 'Ny note. Åbn appen.',
     icon: './icon.svg',
     badge: './icon.svg',
-    tag: 'stay-task',
+    tag: heldags ? `stay-heldags-${heldags.id}` : 'stay-task',
     renotify: true,
     data: { url: APP_ROOT + `#stay-task=${encodeURIComponent(task)}`, task },
   })
@@ -161,10 +162,35 @@ async function readPushSettings() {
         category: typeof value.category === 'string' ? value.category : 'mix',
         categories: Array.isArray(value.categories) ? value.categories : [],
         taskBank: value.taskBank && typeof value.taskBank === 'object' ? value.taskBank : {},
+        dayPlan: Array.isArray(value.dayPlan) ? value.dayPlan : [],
       }
     }
   } catch {
     // Diskret standard bruges, hvis enhedens lokale indstilling ikke kan læses.
   }
-  return { explicit: false, partnerTitle: 'Stay', category: 'mix', categories: ['mix'], taskBank: {} }
+  return { explicit: false, partnerTitle: 'Stay', category: 'mix', categories: ['mix'], taskBank: {}, dayPlan: [] }
+}
+
+async function dueHeldagsTask(dayPlan) {
+  const now = new Date()
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const minutes = now.getHours() * 60 + now.getMinutes()
+  const sunday = now.getDay() === 0
+  const stateCache = await caches.open('stay-heldags-state')
+  const stateUrl = new URL('stay-heldags-state', self.registration.scope).href
+  const previous = await stateCache.match(stateUrl)
+  const sent = previous ? await previous.json().catch(() => ({})) : {}
+  for (const block of dayPlan) {
+    if (!block || block.accepted !== true || typeof block.time !== 'string' || typeof block.text !== 'string') continue
+    if (block.id === 'sondag' && !sunday) continue
+    if (sent[block.id] === date) continue
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(block.time)
+    if (!match) continue
+    const target = Number(match[1]) * 60 + Number(match[2])
+    if (minutes < target || minutes > target + 30) continue
+    sent[block.id] = date
+    await stateCache.put(stateUrl, new Response(JSON.stringify(sent), { headers: { 'Content-Type': 'application/json' } }))
+    return block
+  }
+  return null
 }

@@ -951,6 +951,16 @@ interface StoredPushSubscription {
   day: string
   remaining: number
   nextDue: number
+  timeZone: string
+  daySchedule: StoredDaySchedule[]
+  dayScheduleSent: Record<string, string>
+}
+
+interface StoredDaySchedule {
+  id: string
+  title: string
+  text: string
+  time: string
 }
 
 async function subscribePush(req: Request, env: Env, body: Record<string, unknown>): Promise<Response> {
@@ -965,6 +975,19 @@ async function subscribePush(req: Request, env: Env, body: Record<string, unknow
   const intervalMin = Math.max(5, Math.min(360, Math.round(number(body.intervalMin, 45))))
   const count = Math.max(1, Math.min(24, Math.round(number(body.count, 6))))
   const mode = body.mode === 'fixed' ? 'fixed' : 'random'
+  const timeZone = validTimeZone(plainText(body.timeZone, 'Europe/Copenhagen', 80))
+  const daySchedule = Array.isArray(body.daySchedule)
+    ? body.daySchedule.flatMap((item): StoredDaySchedule[] => {
+        const raw = record(item)
+        const id = plainText(raw.id, '', 40).replace(/[^a-zA-Z0-9_-]/g, '-')
+        const title = plainText(raw.title, '', 60)
+        const text = plainText(raw.text, '', 240)
+        const time = plainText(raw.time, '', 5)
+        return id && title && text && /^([01]\d|2[0-3]):[0-5]\d$/.test(time)
+          ? [{ id, title, text, time }]
+          : []
+      }).slice(0, 12)
+    : []
   const day = new Date().toISOString().slice(0, 10)
   const storageKey = await pushStorageKey(identity.uid, endpoint)
   const previousRaw = await env.PUSH_SUBS.get(storageKey)
@@ -986,6 +1009,11 @@ async function subscribePush(req: Request, env: Env, body: Record<string, unknow
     nextDue: sameDay && number(previous.nextDue, 0) > Date.now()
       ? number(previous.nextDue, 0)
       : Date.now() + nextPushDelay(intervalMin, mode),
+    timeZone,
+    daySchedule,
+    dayScheduleSent: previous.dayScheduleSent && typeof previous.dayScheduleSent === 'object'
+      ? previous.dayScheduleSent
+      : {},
   }
   await env.PUSH_SUBS.put(storageKey, JSON.stringify(row))
   return json(req, env, { ok: true, intervalMin, count, mode })
@@ -1045,7 +1073,9 @@ async function processPushSubscription(env: Env, key: string): Promise<void> {
     await env.PUSH_SUBS.put(key, JSON.stringify(row))
     return
   }
-  if (row.remaining <= 0 || row.nextDue > now) return
+  const dueDayBlock = findDueDaySchedule(row, now)
+  const regularDue = row.remaining > 0 && row.nextDue <= now
+  if (!dueDayBlock && !regularDue) return
 
   const response = await sendEmptyWebPush(row.endpoint, env).catch(() => null)
   if (response?.status === 404 || response?.status === 410) {
@@ -1053,13 +1083,60 @@ async function processPushSubscription(env: Env, key: string): Promise<void> {
     return
   }
   if (!response?.ok) {
-    row.nextDue = now + 15 * 60_000
+    if (regularDue && !dueDayBlock) row.nextDue = now + 15 * 60_000
     await env.PUSH_SUBS.put(key, JSON.stringify(row))
     return
   }
-  row.remaining = Math.max(0, row.remaining - 1)
-  row.nextDue = now + nextPushDelay(row.intervalMin, row.mode)
+  if (dueDayBlock) {
+    row.dayScheduleSent = { ...row.dayScheduleSent, [dueDayBlock.id]: localScheduleParts(now, row.timeZone).date }
+  } else {
+    row.remaining = Math.max(0, row.remaining - 1)
+    row.nextDue = now + nextPushDelay(row.intervalMin, row.mode)
+  }
   await env.PUSH_SUBS.put(key, JSON.stringify(row))
+}
+
+function validTimeZone(value: string): string {
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: value }).format()
+    return value
+  } catch {
+    return 'Europe/Copenhagen'
+  }
+}
+
+function localScheduleParts(now: number, timeZone: string): { date: string; weekday: string; minutes: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: validTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(now))
+  const value = (type: string) => parts.find((part) => part.type === type)?.value || ''
+  const hour = Math.max(0, Math.min(23, Number(value('hour')) || 0))
+  const minute = Math.max(0, Math.min(59, Number(value('minute')) || 0))
+  return {
+    date: `${value('year')}-${value('month')}-${value('day')}`,
+    weekday: value('weekday'),
+    minutes: hour * 60 + minute,
+  }
+}
+
+function findDueDaySchedule(row: StoredPushSubscription, now: number): StoredDaySchedule | null {
+  const local = localScheduleParts(now, row.timeZone || 'Europe/Copenhagen')
+  const schedule = Array.isArray(row.daySchedule) ? row.daySchedule : []
+  for (const block of schedule) {
+    if (block.id === 'sondag' && local.weekday !== 'Sun') continue
+    if (row.dayScheduleSent?.[block.id] === local.date) continue
+    const [hour, minute] = block.time.split(':').map(Number)
+    const target = hour * 60 + minute
+    if (local.minutes >= target && local.minutes <= target + 30) return block
+  }
+  return null
 }
 
 async function sendEmptyWebPush(endpoint: string, env: Env): Promise<Response> {

@@ -314,7 +314,139 @@ h2 { font-size: 1.05rem; margin: 1.4rem 0 0.5rem; }
 }
 .setup-fold-content { padding: 0.3rem 1rem 1rem; }
 .setup-fold-content .field:last-child { margin-bottom: 0; }
+.setup-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.setup-topline .kicker { margin: 0; }
+.setup-page-menu { position: relative; z-index: 32; }
+.setup-page-menu > summary {
+  min-height: 2.65rem;
+  padding: 0.62rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--accent-2);
+  cursor: pointer;
+  list-style: none;
+  font: 700 0.76rem/1 system-ui, sans-serif;
+}
+.setup-page-menu > summary::-webkit-details-marker { display: none; }
+.setup-page-menu > div {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  display: grid;
+  gap: 0.35rem;
+  width: min(16rem, 82vw);
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(25, 17, 15, 0.99);
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.38);
+}
+.setup-page-menu button,
+.session-side-nav button {
+  min-height: 2.55rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: #211714;
+  color: var(--ink);
+  text-align: left;
+  font: 700 0.74rem/1.2 system-ui, sans-serif;
+  cursor: pointer;
+}
+.setup-section-nav {
+  position: sticky;
+  top: max(0.35rem, env(safe-area-inset-top));
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0.85rem 0;
+  padding: 0.42rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(15, 10, 9, 0.94);
+  backdrop-filter: blur(12px);
+}
+.setup-section-nav button {
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.48rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.72rem;
+  background: transparent;
+  color: var(--muted);
+  font: 700 0.68rem/1.1 system-ui, sans-serif;
+  cursor: pointer;
+}
+.setup-section-nav button.on {
+  border-color: var(--accent);
+  background: #3a221d;
+  color: var(--ink);
+}
+.setup-current-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.8rem;
+}
+.setup-current-summary span {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: #241815;
+  color: var(--muted);
+  font: 650 0.66rem/1.2 system-ui, sans-serif;
+}
+.partner-config-fold,
+.content-config-fold { margin-block: 0.75rem; }
+.setup-finish-bar {
+  position: sticky;
+  bottom: max(0.45rem, env(safe-area-inset-bottom));
+  z-index: 18;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1rem 0 0.7rem;
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(25, 17, 15, 0.96);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(12px);
+}
+.setup-finish-bar span {
+  overflow: hidden;
+  color: var(--muted);
+  font: 650 0.68rem/1.25 system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.setup-finish-bar button { margin: 0; white-space: nowrap; }
 .frue-settings h3 { margin: 1rem 0 0.45rem; }
+.day-plan-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  margin: 0.55rem 0;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: var(--card);
+}
+.day-plan-row.on { border-color: var(--accent); background: #3a221d; }
+.day-plan-choice { display: flex; gap: 0.6rem; align-items: flex-start; cursor: pointer; }
+.day-plan-choice input { width: 1.1rem; height: 1.1rem; margin-top: 0.12rem; accent-color: var(--accent); }
+.day-plan-choice span { display: grid; gap: 0.18rem; }
+.day-plan-choice small { color: var(--muted); font-size: 0.72rem; line-height: 1.35; }
+.day-plan-time { display: grid; gap: 0.2rem; color: var(--muted); font: 0.68rem/1.2 system-ui, sans-serif; }
+.day-plan-time input { width: 7.2rem; margin: 0; padding: 0.55rem 0.6rem; }
 .frue-section-heading {
   display: flex;
   align-items: center;
@@ -828,6 +960,7 @@ button.partner-portrait:disabled { cursor: default; }
   padding: 0.45rem 0.7rem;
   cursor: pointer;
 }
+.session-side-nav { display: grid; gap: 0.4rem; margin-bottom: 0.8rem; }
 .session-side-menu .heat-board { margin-top: 0.8rem; }
 
 .active-task-card {
@@ -1667,6 +1800,8 @@ table.admin th { color: var(--muted); font-weight: 500; }
   .catalog-row,
   .fetish-editor { grid-template-columns: 1fr; }
   .equipment-category-admin-tools { grid-template-columns: 1fr; }
+  .day-plan-row { grid-template-columns: minmax(0, 1fr) 6.8rem; }
+  .day-plan-time input { width: 100%; }
   .catalog-prompt-field,
   .catalog-id { grid-column: 1; }
   .shell-wide.admin-shell {

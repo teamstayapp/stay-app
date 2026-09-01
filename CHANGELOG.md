@@ -2,6 +2,31 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 1. september 2026 — Mere overskuelig app uden funktionstab
+
+- Opsætningen er samlet i seks områder: Scene, Partner, Indhold, Opgaver, Frue
+  og Privatliv. Kun det valgte område vises ad gangen.
+- Partner- og indholdsvalg er samlet i mindre foldbare grupper, så lange sider
+  ikke længere viser alle felter på én gang.
+- Start scene ligger i en fast afslutningsbjælke med de aktuelle valg.
+- Chatten har nu én Menu-knap. Startside, Tilpas scene og Regler ligger sammen
+  med de øvrige chatværktøjer i sidepanelet.
+- Intervalopgaver og Frues heldagsplan har fået tydeligere navne: den første
+  styrer gentagelser, mens heldagsplanen styrer faste klokkeslæt.
+- Ingen funktioner, datafelter eller adminmuligheder er fjernet.
+- Service Worker-cachen er opdateret til version 17.
+
+## 1. september 2026 — Heldagsplan som Web Push
+
+- Hver valgt periode i Frues heldagsplan har nu sit eget redigerbare klokkeslæt.
+- Morgen, formiddag, middag, eftermiddag, aften og nat kan sende daglige Web
+  Push-opgaver; Søndag sender kun om søndagen.
+- Heldagsbeskeder åbner den konkrete opgave i chatten og bruger samme diskrete
+  eller tydelige notifikationsvalg som de øvrige opgaver.
+- Heldagsbeskeder bruger ikke af antallet af almindelige intervalopgaver.
+- Notifikationerne kræver fortsat, at brugeren selv har slået “Til rådighed” til.
+- Service Worker-cachen er opdateret til version 16.
+
 ## 1. september 2026 — Partnerens alder i billedprompten
 
 - Den valgte partneralder læses som et tal og begrænses sikkert til 18–80 år.
