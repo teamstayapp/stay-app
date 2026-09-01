@@ -2,6 +2,23 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 1. september 2026 — Klinik, udstyr v8 og nye chatknapper
+
+- Udstyrskataloget er opgraderet til katalogversion 10 og grupperes nu som
+  almindeligt, avanceret, fetish, læge/undersøgelse, lingeri og udklædning.
+- Klinikpakken tilføjer 25 nye udstyrsvalg, blandt andet handsker, stetoskop,
+  undersøgelsesstol, rekvisitter, vorteklemmer og voksen uniform.
+- Ny redigerbar scene **Undersøgelse** med blød, NSFW- og Plus-tekst samt egne
+  opgaver og billedprompts.
+- Statuspanelet har nu vorter som fri, klemt eller e-stim.
+- Flere handlinger har fået Må jeg røre, Må jeg komme, Må jeg sluge, Skift
+  plug, Sluk e-stim, Kommet + slugt og Send bevis. **Næsten** hedder nu
+  **Tæt på**.
+- En lokal lektie kan gemmes under Frue, vises ved næste session og fjernes
+  automatisk bagefter.
+- Nye plus- og minusord fra udstyrspakken er føjet til ordbogen.
+- De tre originale kravfiler følger med under `docs/`.
+
 ## 31. august 2026 — Frue, Master og udvidet ordbog
 
 - Fire komplette Master-scener er føjet til scenekataloget: arbejde, venner,

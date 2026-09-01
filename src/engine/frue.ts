@@ -2,6 +2,7 @@ export type LivePlace = 'alone' | 'work' | 'others'
 export type LivePrecum = 'none' | 'little' | 'lots'
 export type OrgasmLock = 'free' | 'denied' | 'edges' | 'after_tasks' | 'night'
 export type PlugSize = 'none' | 'small' | 'purple' | 'large'
+export type NippleStatus = 'free' | 'clamped' | 'estim'
 
 export interface LiveStatus {
   arousal: number
@@ -10,6 +11,7 @@ export interface LiveStatus {
   precum: LivePrecum
   place: LivePlace
   panties: boolean
+  nipples: NippleStatus
 }
 
 export interface PlugLogEntry {
@@ -37,6 +39,7 @@ export interface FrueState {
   lastOrgasmAt: string
   plugLog: PlugLogEntry[]
   dayPlan: DayBlock[]
+  homework: string
 }
 
 const KEY = 'stay-frue-state'
@@ -48,6 +51,7 @@ export const defaultStatus = (): LiveStatus => ({
   precum: 'none',
   place: 'alone',
   panties: false,
+  nipples: 'free',
 })
 
 export const defaultDayPlan = (): DayBlock[] => [
@@ -69,6 +73,7 @@ export function defaultFrueState(): FrueState {
     lastOrgasmAt: '',
     plugLog: [],
     dayPlan: defaultDayPlan(),
+    homework: '',
   }
 }
 
@@ -96,7 +101,8 @@ export function saveFrueState(state: FrueState) {
 
 function migrateStatus(status: Omit<LiveStatus, 'plug'> & { plug?: PlugSize | boolean }): LiveStatus {
   const plug = status.plug === true ? 'small' : status.plug === false || !status.plug ? 'none' : status.plug
-  return { ...defaultStatus(), ...status, plug, panties: status.panties === true }
+  const nipples = status.nipples === 'clamped' || status.nipples === 'estim' ? status.nipples : 'free'
+  return { ...defaultStatus(), ...status, plug, panties: status.panties === true, nipples }
 }
 
 function mergeDayPlan(value: unknown): DayBlock[] {
@@ -109,7 +115,8 @@ export function statusLine(status: LiveStatus): string {
   const plug = status.plug === 'small' ? 'lille plug' : status.plug === 'purple' ? 'lilla plug' : status.plug === 'large' ? 'stor plug' : 'tom'
   const precum = status.precum === 'lots' ? 'meget i kondomet' : status.precum === 'little' ? 'lidt i kondomet' : 'kondom tomt'
   const place = status.place === 'work' ? 'arbejde' : status.place === 'others' ? 'andre i nærheden' : 'alene'
-  return `Tændt ${status.arousal}/10. Plug: ${plug}. E-stim ${status.estim}. ${precum}. Sted: ${place}. Trusser: ${status.panties ? 'ja' : 'nej'}.`
+  const nipples = status.nipples === 'clamped' ? 'klemt' : status.nipples === 'estim' ? 'e-stim' : 'fri'
+  return `Tændt ${status.arousal}/10. Plug: ${plug}. E-stim ${status.estim}. ${precum}. Sted: ${place}. Trusser: ${status.panties ? 'ja' : 'nej'}. Vorter: ${nipples}.`
 }
 
 export function daysSinceOrgasm(lastOrgasmAt: string): number {

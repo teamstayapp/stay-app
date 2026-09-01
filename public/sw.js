@@ -1,4 +1,4 @@
-const CACHE = 'stay-v12'
+const CACHE = 'stay-v13'
 const APP_ROOT = new URL('./', self.registration.scope).href
 const PUSH_CONFIG_URL = new URL('stay-push-config', self.registration.scope).href
 

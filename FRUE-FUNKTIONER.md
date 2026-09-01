@@ -11,6 +11,12 @@ plug-dagbog og nye Plus-prompts i den eksisterende Stay-app.
   trusser, precum, sted og e-stim. Panelet er lukket som standard, så
   chatvinduet beholder pladsen.
 - **Natte-lås** blokerer klimaks mellem kl. 22 og 08 og kræver morgenrapport.
+- **Lektie til næste session** gemmes lokalt, vises én gang ved næste start og
+  ryddes derefter automatisk.
+- **Undersøgelse** er en separat Klinik-scene med eget udstyr, opgaver,
+  billedprompts og tydelig adskillelse fra rigtig lægehjælp.
+- Chatstatus kan vise vorter som fri, klemt eller e-stim, og hurtigmenuen har
+  knapper til tilladelser, plugskift, e-stim-stop, bevis og færdig rapport.
 - Heldagsplanen indeholder nu morgen, formiddag, middag, eftermiddag, aften,
   nat og søndag.
 - **Aktuel opgave → Ikke fuldført** afslutter opgaven og lader AI-partneren
@@ -25,5 +31,5 @@ brugerens øvrige grænser har altid forrang.
 2. Erstat Cloudflare Worker-koden med `worker/stay-api-worker-manual.js` og
    deploy den.
 3. I Admin vælges **Gendan standard** og **Udgiv** for både scener og indhold,
-   så katalog version 9, Master-scenerne og de nye Plus-prompts bliver centrale.
+   så katalog version 10, Klinik-/Master-scenerne og de nye Plus-prompts bliver centrale.
 4. Firebase-konfigurationen skal ikke ændres.

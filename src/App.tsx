@@ -797,11 +797,14 @@ export default function App() {
       'I dag: plug eller trusser — du vælger, du beholder det på.',
     ]
     const daily = dailyPool[[...dayKey].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % dailyPool.length]
+    const homework = frue.homework.trim()
     setLines([
       systemLine(scene ? scene.title : 'Scene start'),
+      ...(homework ? [systemLine(`Lektie fra sidste session: ${homework}`)] : []),
       systemLine(`Dagens ordre: ${daily}`),
       aiLine(openingPromptForPlan(scene, p.plan, p.nsfw)),
     ])
+    if (homework) setFrue((current) => ({ ...current, homework: '' }))
     setCycle(1)
     setNear('ok')
     setRunning(true)
@@ -1398,6 +1401,49 @@ export default function App() {
       ? 'Reverse kegel. Sig hvor mange sekunder jeg skal afspænde eller skubbe blidt ud, og hvornår jeg slipper. Ingen lægeråd og ingen smerte-guide.'
       : 'Almindelig kegel. Sig hvor længe jeg skal knibe, hvor mange gentagelser, og hvornår jeg må slippe.'
     await sendAiRequest(text, 'task', kind === 'reverse' ? 'Reverse kegel' : 'Kegel')
+  }
+
+  async function requestScenePermission(kind: 'touch' | 'climax' | 'swallow') {
+    if (kind === 'climax') {
+      const blocked = lockBlocksClimax(frue)
+      await sendAiRequest(
+        blocked
+          ? `Må jeg komme? Den aktive lås siger: ${blocked} Giv et kort nej og én regel.`
+          : 'Må jeg komme? Svar kort ja eller nej og giv én regel. Bed om min status fra 1 til 10.',
+        'close',
+        'Må jeg komme',
+      )
+      return
+    }
+    await sendAiRequest(
+      kind === 'touch'
+        ? 'Må jeg røre mig? Svar kort ja eller nej og giv præcis én regel.'
+        : 'Må jeg sluge? Tillad det kun, hvis det er aftalt og indholdet er friskt; ellers sig at det skal kasseres.',
+      'chat',
+      kind === 'touch' ? 'Må jeg røre' : 'Må jeg sluge',
+    )
+  }
+
+  async function requestPlugChange() {
+    await sendAiRequest(
+      `Skift plug. Aktuel status er ${statusLine(frue.status)}. Giv én instruktion: mindre, større eller ud. Stop ved smerte eller følelsesløshed.`,
+      'task',
+      'Skift plug',
+    )
+  }
+
+  async function stopEstim() {
+    setFrue((current) => ({ ...current, status: { ...current.status, estim: '0' } }))
+    await sendAiRequest('E-stim er slukket som sikkerhedsstop. Bekræft kort uden DIY-råd.', 'chat', 'Sluk e-stim')
+  }
+
+  async function reportSwallowed() {
+    setFrue((current) => ({ ...current, lastOrgasmAt: new Date().toISOString() }))
+    await sendAiRequest(
+      'Jeg er kommet og har slugt som aftalt. Bekræft kort og vælg enten en ny udløsningslås eller rolig aftercare.',
+      'climax',
+      'Kommet + slugt',
+    )
   }
 
   async function sendRuinedMoment() {
@@ -2327,6 +2373,17 @@ export default function App() {
                 <span><strong>{block.title}</strong><small>{block.text}</small></span>
               </label>
             ))}
+            <label className="field">
+              <span>Lektie til næste session</span>
+              <textarea
+                rows={3}
+                maxLength={500}
+                value={frue.homework}
+                placeholder="Fx sov med lille plug og rapportér status 1–10 næste gang"
+                onChange={(event) => setFrue((current) => ({ ...current, homework: event.target.value }))}
+              />
+              <small>Gemmes kun på denne enhed, vises ved næste start og fjernes derefter.</small>
+            </label>
 
             <div className="frue-section-heading">
               <h3>Plug-dagbog</h3>
@@ -3726,6 +3783,16 @@ export default function App() {
               />
             </label>
           </div>
+          <div className="row" aria-label="Brystvortestatus">
+            {([['free', 'Vorter fri'], ['clamped', 'Vorter klemt'], ['estim', 'E-stim på vorter']] as const).map(([id, title]) => (
+              <button
+                key={id}
+                type="button"
+                className={frue.status.nipples === id ? 'chip on' : 'chip'}
+                onClick={() => setFrue((current) => ({ ...current, status: { ...current.status, nipples: id } }))}
+              >{title}</button>
+            ))}
+          </div>
           {frue.dayPlan.some((block) => block.accepted) && (
             <div className="row" aria-label="Heldagsplan">
               {frue.dayPlan.filter((block) => block.accepted).map((block) => (
@@ -3763,7 +3830,7 @@ export default function App() {
           </button>
         </div>
         <div className="chat-moment-actions" aria-label="Vigtige scenevalg">
-          <button type="button" disabled={aiThinking} onClick={() => void sendCloseMoment()}>Næsten</button>
+          <button type="button" disabled={aiThinking} onClick={() => void sendCloseMoment()}>Tæt på</button>
           <button type="button" onClick={() => tickSession('too')}>For meget</button>
           <button type="button" className="finish" disabled={aiThinking} onClick={() => void sendClimaxMoment()}>Jeg kommer</button>
         </div>
@@ -3774,6 +3841,13 @@ export default function App() {
             <button type="button" disabled={aiThinking} onClick={() => void requestProtocol()}>Protocol</button>
             <button type="button" disabled={aiThinking} onClick={() => void requestKegel('kegel')}>Kegel</button>
             <button type="button" disabled={aiThinking} onClick={() => void requestKegel('reverse')}>Reverse kegel</button>
+            <button type="button" disabled={aiThinking} onClick={() => void requestScenePermission('touch')}>Må jeg røre</button>
+            <button type="button" disabled={aiThinking} onClick={() => void requestScenePermission('climax')}>Må jeg komme</button>
+            <button type="button" disabled={aiThinking} onClick={() => void requestScenePermission('swallow')}>Må jeg sluge</button>
+            <button type="button" disabled={aiThinking} onClick={() => void requestPlugChange()}>Skift plug</button>
+            <button type="button" disabled={aiThinking} onClick={() => void stopEstim()}>Sluk e-stim</button>
+            <button type="button" disabled={aiThinking} onClick={() => void reportSwallowed()}>Kommet + slugt</button>
+            <button type="button" disabled={aiThinking} onClick={() => fileRef.current?.click()}>Send bevis</button>
             <button type="button" disabled={imageBusy || aiThinking} onClick={() => void createChatImage()}>
               {imageBusy ? 'Laver billede…' : 'Billede i chat'}
             </button>
