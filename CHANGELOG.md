@@ -2,6 +2,26 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 1. september 2026 — Partnerens alder i billedprompten
+
+- Den valgte partneralder læses som et tal og begrænses sikkert til 18–80 år.
+- Billedprompten angiver nu den præcise alder og beskriver ansigtets modenhed,
+  så billedmodellen ikke automatisk gør ældre partnere yngre.
+- Alle udstyrskategorier, gynstol-poser og tidligere billedrettelser er bevaret.
+
+## 1. september 2026 — Udstyrskategorier og gynstol-poser
+
+- Udstyr er nu opdelt i foldbare kategorier hos brugeren, så den lange liste
+  ikke vises på én gang.
+- Admin kan oprette, omdøbe, skjule og slette udstyrskategorier, tilføje udstyr
+  direkte i en kategori og flytte eksisterende udstyr mellem kategorier.
+- Ved sletning af en kategori flyttes dens udstyr sikkert til den første
+  resterende kategori.
+- Kataloget er opgraderet til version 11 og migrerer eksisterende udstyr uden
+  at slette brugerens eller admins tidligere valg.
+- Gynstol-pakken tilføjer otte nye billedposer, herunder en SFW-klinikpose.
+- App-cachen er opdateret til version 14.
+
 ## 1. september 2026 — Klinik, udstyr v8 og nye chatknapper
 
 - Udstyrskataloget er opgraderet til katalogversion 10 og grupperes nu som

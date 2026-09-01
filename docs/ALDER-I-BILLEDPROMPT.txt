@@ -1,0 +1,6 @@
+Partnerens alder i billedprompten
+
+Den valgte alder læses som et tal, afrundes og begrænses til 18–80 år.
+Billedprompten sender både "exactly N years old" og en alderspassende
+beskrivelse af ansigtet til billedmodellen. Det gælder både nye partnerbilleder
+og nye positurer, fordi begge funktioner bruger den samme billedprompt.

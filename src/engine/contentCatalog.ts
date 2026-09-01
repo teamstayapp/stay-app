@@ -3,7 +3,7 @@ import type { PlanId } from './plans'
 import { getFirebaseDb } from './firebase'
 import { DEFAULT_TASK_BANK, TASK_CATEGORIES } from './sessionStore'
 
-const CATALOG_VERSION = 10
+const CATALOG_VERSION = 11
 
 export interface ContentOption {
   id: string
@@ -15,6 +15,13 @@ export interface ContentOption {
   enabled: boolean
   free: boolean
   minimumPlan: PlanId
+}
+
+export interface EquipmentCategory {
+  id: string
+  title: string
+  enabled: boolean
+  order: number
 }
 
 export interface TaskItem {
@@ -33,6 +40,7 @@ export interface TaskGroup {
 
 export interface ContentCatalog {
   version: number
+  equipmentCategories: EquipmentCategory[]
   equipment: ContentOption[]
   fetishes: ContentOption[]
   words: ContentOption[]
@@ -193,6 +201,30 @@ const equipment = equipmentSeeds.map(([id, title, group, minimumPlan, prompt], o
   blurb: '',
   enabled: true,
   free: minimumPlan === 'free',
+  order,
+}))
+
+const preferredEquipmentCategoryOrder = [
+  'Alm. sexlegetøj',
+  'Avanceret sexlegetøj',
+  'Fetish sexlegetøj',
+  'Læge / undersøgelse',
+  'Lingeri',
+  'Udklædning',
+  'Krop og sikring',
+]
+
+const equipmentCategoryTitles = [...new Set(equipment.map((item) => item.group))]
+  .sort((a, b) => {
+    const aIndex = preferredEquipmentCategoryOrder.indexOf(a)
+    const bIndex = preferredEquipmentCategoryOrder.indexOf(b)
+    return (aIndex < 0 ? 999 : aIndex) - (bIndex < 0 ? 999 : bIndex) || a.localeCompare(b, 'da')
+  })
+
+const defaultEquipmentCategories: EquipmentCategory[] = equipmentCategoryTitles.map((title, order) => ({
+  id: `udstyr-${title.toLowerCase().replace(/[^a-z0-9æøå]+/g, '-').replace(/^-|-$/g, '') || order}`,
+  title,
+  enabled: true,
   order,
 }))
 
@@ -511,6 +543,7 @@ const defaultTaskGroups: TaskGroup[] = TASK_CATEGORIES.map((id, order) => ({
 
 export const DEFAULT_CONTENT_CATALOG: ContentCatalog = {
   version: CATALOG_VERSION,
+  equipmentCategories: defaultEquipmentCategories,
   equipment,
   words: defaultWords,
   wordsMinus: defaultWordsMinus,
@@ -617,13 +650,52 @@ function normalizeTaskGroups(value: unknown, fallback: TaskGroup[], mergeDefault
     .map((item, order) => ({ ...item, order }))
 }
 
+function normalizeEquipmentCategories(
+  value: unknown,
+  equipmentItems: ContentOption[],
+  fallback: EquipmentCategory[],
+): EquipmentCategory[] {
+  const incoming = Array.isArray(value) ? value : []
+  const parsed = incoming.flatMap((item, order): EquipmentCategory[] => {
+    if (!item || typeof item !== 'object') return []
+    const raw = item as Partial<EquipmentCategory>
+    const title = text(raw.title, '', 80)
+    if (!title) return []
+    const id = text(raw.id, `udstyr-${order}`, 80).replace(/[^a-zA-Z0-9_-]/g, '-')
+    return [{ id, title, enabled: raw.enabled !== false, order: typeof raw.order === 'number' ? raw.order : order }]
+  })
+  const source = parsed.length ? parsed : structuredClone(fallback)
+  const titles = new Set(source.map((category) => category.title))
+  for (const item of equipmentItems) {
+    if (titles.has(item.group)) continue
+    source.push({
+      id: `udstyr-${item.group.toLowerCase().replace(/[^a-z0-9æøå]+/g, '-').replace(/^-|-$/g, '') || source.length}`,
+      title: item.group,
+      enabled: true,
+      order: source.length,
+    })
+    titles.add(item.group)
+  }
+  const ids = new Set<string>()
+  return source
+    .filter((category) => !ids.has(category.id) && ids.add(category.id))
+    .sort((a, b) => a.order - b.order)
+    .map((category, order) => ({ ...category, order }))
+}
+
 function normalizeCatalog(value: unknown): ContentCatalog {
   if (!value || typeof value !== 'object') return structuredClone(DEFAULT_CONTENT_CATALOG)
   const raw = value as Partial<ContentCatalog>
   const migrate = typeof raw.version !== 'number' || raw.version < CATALOG_VERSION
+  const equipment = normalizeOptions(raw.equipment, DEFAULT_CONTENT_CATALOG.equipment, migrate)
   return {
     version: CATALOG_VERSION,
-    equipment: normalizeOptions(raw.equipment, DEFAULT_CONTENT_CATALOG.equipment, migrate),
+    equipmentCategories: normalizeEquipmentCategories(
+      raw.equipmentCategories,
+      equipment,
+      DEFAULT_CONTENT_CATALOG.equipmentCategories,
+    ),
+    equipment,
     fetishes: normalizeOptions(raw.fetishes, DEFAULT_CONTENT_CATALOG.fetishes, migrate),
     words: normalizeOptions(raw.words, DEFAULT_CONTENT_CATALOG.words, migrate),
     wordsMinus: normalizeOptions(raw.wordsMinus, DEFAULT_CONTENT_CATALOG.wordsMinus, migrate),

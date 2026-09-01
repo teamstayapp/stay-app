@@ -21,6 +21,7 @@ import {
   publishContentCatalog,
   type ContentCatalog,
   type ContentOption,
+  type EquipmentCategory,
   type TaskGroup,
 } from '../engine/contentCatalog'
 import {
@@ -360,7 +361,10 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
           ]
         : [
             ...current[kind],
-            newContentOption(kind === 'equipment' ? 'equipment' : 'fetish', current[kind].length),
+            {
+              ...newContentOption(kind === 'equipment' ? 'equipment' : 'fetish', current[kind].length),
+              ...(kind === 'equipment' ? { group: current.equipmentCategories[0]?.title || 'Andet' } : {}),
+            },
           ],
     }))
     if (kind === 'words' || kind === 'wordsMinus') {
@@ -370,6 +374,63 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
         list?.querySelector<HTMLInputElement>('input')?.focus()
       })
     }
+  }
+
+  function addEquipmentCategory() {
+    const stamp = Date.now().toString(36)
+    setContentNotice('')
+    setContentCatalog((current) => ({
+      ...current,
+      equipmentCategories: [
+        ...current.equipmentCategories,
+        { id: `udstyr-${stamp}`, title: `Ny kategori ${current.equipmentCategories.length + 1}`, enabled: true, order: current.equipmentCategories.length },
+      ],
+    }))
+  }
+
+  function patchEquipmentCategory(id: string, patch: Partial<EquipmentCategory>) {
+    setContentNotice('')
+    setContentCatalog((current) => {
+      const previous = current.equipmentCategories.find((category) => category.id === id)
+      const nextTitle = patch.title !== undefined ? patch.title : previous?.title
+      return {
+        ...current,
+        equipmentCategories: current.equipmentCategories.map((category) => category.id === id ? { ...category, ...patch } : category),
+        equipment: previous && nextTitle && nextTitle !== previous.title
+          ? current.equipment.map((item) => item.group === previous.title ? { ...item, group: nextTitle } : item)
+          : current.equipment,
+      }
+    })
+  }
+
+  function addEquipmentToCategory(categoryTitle: string) {
+    setContentNotice('')
+    setContentCatalog((current) => ({
+      ...current,
+      equipment: [
+        ...current.equipment,
+        { ...newContentOption('equipment', current.equipment.length), group: categoryTitle },
+      ],
+    }))
+  }
+
+  function removeEquipmentCategory(id: string) {
+    const category = contentCatalog.equipmentCategories.find((item) => item.id === id)
+    if (!category || !window.confirm(`Slet kategorien “${category.title}”? Udstyret flyttes til den første resterende kategori.`)) return
+    if (contentCatalog.equipmentCategories.length < 2) {
+      setContentNotice('Der skal være mindst én udstyrskategori.')
+      return
+    }
+    setContentNotice('')
+    setContentCatalog((current) => {
+      const categories = current.equipmentCategories.filter((item) => item.id !== id).map((item, order) => ({ ...item, order }))
+      const destination = categories[0]?.title || 'Andet'
+      return {
+        ...current,
+        equipmentCategories: categories,
+        equipment: current.equipment.map((item) => item.group === category.title ? { ...item, group: destination } : item),
+      }
+    })
   }
 
   function removeContentOption(kind: 'equipment' | 'fetishes' | 'words' | 'wordsMinus', id: string) {
@@ -1066,64 +1127,100 @@ export function AdminScreen({ onBack }: { onBack: () => void }) {
               <div>
                 <p className="kicker">Afkrydsningsfelter</p>
                 <h2>Udstyr</h2>
-                <small>{contentCatalog.equipment.length} felter · tryk for at åbne</small>
+                <small>{contentCatalog.equipmentCategories.length} kategorier · {contentCatalog.equipment.length} felter</small>
               </div>
-              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addContentOption('equipment') }}>+ Tilføj udstyr</button>
+              <button type="button" className="chip on" onClick={(event) => { event.preventDefault(); addEquipmentCategory() }}>+ Kategori</button>
             </summary>
-            <div className="catalog-list">
-              {contentCatalog.equipment.map((item) => (
-                <article className="catalog-row" key={item.id}>
-                  <label className="field">
-                    Navn hos brugeren
-                    <input
-                      value={item.title}
-                      maxLength={80}
-                      onChange={(e) => updateContentOption('equipment', item.id, { title: e.target.value })}
-                    />
-                  </label>
-                  <label className="field">
-                    Gruppe
-                    <input
-                      value={item.group}
-                      maxLength={80}
-                      onChange={(e) => updateContentOption('equipment', item.id, { group: e.target.value })}
-                    />
-                  </label>
-                  <label className="field">
-                    Mindste plan
-                    <select
-                      value={item.minimumPlan}
-                      onChange={(e) => updateContentOption('equipment', item.id, {
-                        minimumPlan: e.target.value as PlanId,
-                        free: e.target.value === 'free',
-                      })}
-                    >
-                      <option value="free">Prøv</option>
-                      <option value="solo">Solo</option>
-                      <option value="plus">Plus</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    Ord sendt til AI
-                    <input
-                      value={item.prompt}
-                      maxLength={160}
-                      placeholder={item.title}
-                      onChange={(e) => updateContentOption('equipment', item.id, { prompt: e.target.value })}
-                    />
-                  </label>
-                  <label className="toggle-field">
-                    <input
-                      type="checkbox"
-                      checked={item.enabled}
-                      onChange={(e) => updateContentOption('equipment', item.id, { enabled: e.target.checked })}
-                    />
-                    Aktiv
-                  </label>
-                  <button className="safe" onClick={() => removeContentOption('equipment', item.id)}>Slet</button>
-                  <small className="catalog-id">ID: {item.id}</small>
-                </article>
-              ))}
+            <div className="catalog-list equipment-category-admin-list">
+              {contentCatalog.equipmentCategories.map((category) => {
+                const categoryItems = contentCatalog.equipment.filter((item) => item.group === category.title)
+                return (
+                  <details className="equipment-category-admin" key={category.id}>
+                    <summary>
+                      <span><strong>{category.title}</strong><small>{categoryItems.length} udstyr</small></span>
+                      <span>{category.enabled ? 'Aktiv' : 'Skjult'}</span>
+                    </summary>
+                    <div className="equipment-category-admin-tools">
+                      <label className="field">
+                        Kategorinavn
+                        <input
+                          value={category.title}
+                          maxLength={80}
+                          onChange={(event) => patchEquipmentCategory(category.id, { title: event.target.value })}
+                        />
+                      </label>
+                      <label className="toggle-field">
+                        <input
+                          type="checkbox"
+                          checked={category.enabled}
+                          onChange={(event) => patchEquipmentCategory(category.id, { enabled: event.target.checked })}
+                        />
+                        Vis hos brugeren
+                      </label>
+                      <button type="button" onClick={() => addEquipmentToCategory(category.title)}>+ Tilføj udstyr</button>
+                      <button type="button" className="safe" onClick={() => removeEquipmentCategory(category.id)}>Slet kategori</button>
+                    </div>
+                    <div className="catalog-list">
+                      {categoryItems.map((item) => (
+                        <article className="catalog-row" key={item.id}>
+                          <label className="field">
+                            Navn hos brugeren
+                            <input
+                              value={item.title}
+                              maxLength={80}
+                              onChange={(event) => updateContentOption('equipment', item.id, { title: event.target.value })}
+                            />
+                          </label>
+                          <label className="field">
+                            Kategori
+                            <select
+                              value={item.group}
+                              onChange={(event) => updateContentOption('equipment', item.id, { group: event.target.value })}
+                            >
+                              {contentCatalog.equipmentCategories.map((option) => (
+                                <option value={option.title} key={option.id}>{option.title}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="field">
+                            Mindste plan
+                            <select
+                              value={item.minimumPlan}
+                              onChange={(event) => updateContentOption('equipment', item.id, {
+                                minimumPlan: event.target.value as PlanId,
+                                free: event.target.value === 'free',
+                              })}
+                            >
+                              <option value="free">Prøv</option>
+                              <option value="solo">Solo</option>
+                              <option value="plus">Plus</option>
+                            </select>
+                          </label>
+                          <label className="field">
+                            Ord sendt til AI
+                            <input
+                              value={item.prompt}
+                              maxLength={160}
+                              placeholder={item.title}
+                              onChange={(event) => updateContentOption('equipment', item.id, { prompt: event.target.value })}
+                            />
+                          </label>
+                          <label className="toggle-field">
+                            <input
+                              type="checkbox"
+                              checked={item.enabled}
+                              onChange={(event) => updateContentOption('equipment', item.id, { enabled: event.target.checked })}
+                            />
+                            Aktiv
+                          </label>
+                          <button className="safe" onClick={() => removeContentOption('equipment', item.id)}>Slet</button>
+                          <small className="catalog-id">ID: {item.id}</small>
+                        </article>
+                      ))}
+                    </div>
+                  </details>
+                )
+              })}
             </div>
           </details>
 

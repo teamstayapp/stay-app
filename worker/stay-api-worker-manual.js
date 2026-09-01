@@ -463,8 +463,32 @@ const PROFESSION_CHAT = {
     pilot: 'Du er pilot. Cockpit og kontrol.',
     paramedic: 'Du er redder i fiktion. Ingen rigtig førstehjælp.',
 };
+const GYN_POSE = {
+    gyn_empty: 'adult female doctor 30+, open white coat, black lingerie, stockings, heels, standing beside a padded gynecology exam chair with stirrups, dim private clinic, latex gloves, photorealistic, never underage',
+    gyn_stirrups: 'adult male patient on a gynecology chair, legs up in metal stirrups, ass at the edge of the chair, black stockings, garter, underwear pulled aside, adult female doctor in an open coat standing between his legs, photorealistic adult scene, never underage',
+    gyn_plug: 'close view of an adult male on the edge of a gynecology exam chair, legs in metal stirrups, adult toy plug visible, doctor gloved hand in frame, photorealistic adult scene, never underage',
+    gyn_gloves: 'adult doctor in white coat and latex gloves inspecting an adult male on a gynecology chair with stirrups, legs spread, clinical lamp, photorealistic adult scene, never underage',
+    gyn_strap: 'adult doctor wearing a black strap-on with an adult male whose legs are in metal stirrups on a gynecology chair, open coat, stockings, photorealistic adult scene, never underage',
+    gyn_frue: 'same adult doctor sitting in the gynecology chair, legs in metal stirrups, coat open, lingerie, photorealistic adult scene, never underage',
+    gyn_speculum: 'adult doctor with gloved hands using an adult toy speculum in consensual adult clinic roleplay with a male patient in stirrups, clinical lamp, not medical advice, photorealistic, never underage',
+    gyn_sfw: 'empty padded gynecology exam chair with stirrups in a private clinic, adult female doctor in closed white coat standing beside it, tasteful, not nude, never underage',
+};
+function ageLook(age, figure) {
+    const years = Math.max(18, Math.min(80, Math.round(age)));
+    const person = figure === 'male' ? 'man' : 'woman';
+    const exact = `exactly ${years} years old`;
+    if (years >= 55)
+        return `${exact} mature ${person}, face and hands show ${years}, not youthful`;
+    if (years >= 40)
+        return `${exact} ${person}, mature face matching ${years}, not a 20-year-old model`;
+    if (years >= 30)
+        return `${exact} adult ${person}, face matching ${years}, not early 20s`;
+    return `${exact} adult ${person}, 18 or older, no teen features`;
+}
 function buildImagePrompt(profile, scene) {
     const figure = safe(profile.figure, 'mistress') === 'master' ? 'male' : 'female';
+    const years = Math.max(18, Math.min(80, number(profile.partnerAge, 28)));
+    const aged = ageLook(years, figure);
     const look = safe(profile.look, 'clothed');
     const job = PROFESSION_LOOK[safe(profile.profession, 'none')] || '';
     const clothing = look === 'nsfw'
@@ -503,7 +527,7 @@ function buildImagePrompt(profile, scene) {
         profile.freckles === true ? 'visible freckles' : '',
         profile.tattoos === true ? 'tasteful adult tattoos' : '',
         profile.wet === true ? 'glistening slightly wet skin' : '',
-        `clearly adult ${Math.max(18, Math.min(80, number(profile.partnerAge, 28)))} years old`,
+        aged,
         safe(profile.cockPreset, 'none') === 'bbc' ? 'adult dark-skinned man, large penis, no text' : '',
         safe(profile.cockPreset, 'none') === 'bwc' ? 'adult light-skinned man, large penis, no text' : '',
         lingerie ? `selected partner clothing: ${lingerie}` : '',
@@ -517,11 +541,13 @@ function buildImagePrompt(profile, scene) {
         safe(profile.imagePose, 'portrait') === 'futa_harness'
             ? 'fictional clearly adult feminine character with penis, black leather harness, kneeling, full body'
             : '',
+        GYN_POSE[safe(profile.imagePose, 'portrait')] || '',
     ].filter(Boolean).join(', ');
     return [
-        'Create a high-quality vertical 2:3 photograph of one fictional adult character, clearly age 25 or older.',
+        `Create a high-quality vertical 2:3 photograph of one fictional ${aged}.`,
         'The character must not resemble or depict a real person. No text, logo, watermark, childlike features, school setting or age ambiguity.',
-        `${figure} character, ${bodyLabels[safe(profile.body, 'athletic')] || 'athletic'}, ${skinLabels[safe(profile.skin, 'olive')] || 'olive skin'}, ${hair}, ${anatomy}, ${clothing}, ${extras}.`,
+        `Do not make them look younger than ${years}. Face age must match ${years}.`,
+        `${figure} character, ${aged}, ${bodyLabels[safe(profile.body, 'athletic')] || 'athletic'}, ${skinLabels[safe(profile.skin, 'olive')] || 'olive skin'}, ${hair}, ${anatomy}, ${clothing}, ${extras}.`,
         scene.imagePrompt || 'Cinematic portrait, direct eye contact, detailed natural lighting.',
         profile.nsfw === true && scene.nsfwImagePrompt ? scene.nsfwImagePrompt : '',
         profile.plan === 'plus' && profile.nsfw === true && scene.plusImagePrompt ? scene.plusImagePrompt : '',

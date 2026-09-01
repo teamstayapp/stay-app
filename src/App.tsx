@@ -2716,16 +2716,29 @@ export default function App() {
         <h2>Billedpose</h2>
         <p className="hint">Vælg komposition til næste billede. Figuren er altid fiktiv og tydeligt voksen.</p>
         <div className="row">
-          {([['portrait', 'Portræt'], ['kneel_harness', 'På knæ i sele'], ['lace_rear', 'Blonder bagfra'], ['futa_harness', 'Futa / sele']] as Array<[ImagePose, string]>).map(([id, title]) => (
+          {([
+            ['portrait', 'Portræt'],
+            ['kneel_harness', 'På knæ i sele'],
+            ['lace_rear', 'Blonder bagfra'],
+            ['futa_harness', 'Futa / sele'],
+            ['gyn_empty', 'Gynstol tom'],
+            ['gyn_stirrups', 'Ben i bøjlerne'],
+            ['gyn_plug', 'Plug close-up'],
+            ['gyn_gloves', 'Handsker / inspektion'],
+            ['gyn_strap', 'Strap-on i stolen'],
+            ['gyn_frue', 'Fruen i stolen'],
+            ['gyn_speculum', 'Spekulum-legetøj'],
+            ['gyn_sfw', 'Klinik SFW'],
+          ] as Array<[ImagePose, string]>).map(([id, title]) => (
             <button
               key={id}
               type="button"
               className={profile.imagePose === id ? 'chip on' : 'chip'}
-              disabled={id !== 'portrait' && !currentPlan.nsfw}
+              disabled={id !== 'portrait' && id !== 'gyn_sfw' && !currentPlan.nsfw}
               onClick={() => setProfile({
                 ...profile,
                 imagePose: id,
-                ...(id !== 'portrait' ? { look: 'nsfw', nsfw: true } : {}),
+                ...(id !== 'portrait' && id !== 'gyn_sfw' ? { look: 'nsfw', nsfw: true } : {}),
               })}
             >{title}</button>
           ))}
@@ -3161,22 +3174,40 @@ export default function App() {
           </summary>
           <div className="setup-fold-content">
             <p className="hint">Vælg kun det, du faktisk har. AI-partneren tilpasser scenen efter listen.</p>
-            <div className="equipment-grid">
-              {contentCatalog.equipment
-                .filter((item) => item.enabled && planCanUseContent(profile.plan, item))
-                .map((item) => (
-                <label
-                  key={item.id}
-                  className={profile.equipment.includes(item.id) ? 'equipment-option on' : 'equipment-option'}
-                >
-                  <input
-                    type="checkbox"
-                    checked={profile.equipment.includes(item.id)}
-                    onChange={() => toggleEquipment(item.id)}
-                  />
-                  <span>{item.title}</span>
-                </label>
-                ))}
+            <div className="equipment-category-list">
+              {contentCatalog.equipmentCategories
+                .filter((category) => category.enabled)
+                .sort((a, b) => a.order - b.order)
+                .map((category) => {
+                  const items = contentCatalog.equipment.filter(
+                    (item) => item.group === category.title && item.enabled && planCanUseContent(profile.plan, item),
+                  )
+                  if (!items.length) return null
+                  const selected = items.filter((item) => profile.equipment.includes(item.id)).length
+                  return (
+                    <details className="equipment-category-fold" key={category.id}>
+                      <summary>
+                        <span>{category.title}</span>
+                        <small>{selected ? `${selected} valgt` : `${items.length} muligheder`}</small>
+                      </summary>
+                      <div className="equipment-grid">
+                        {items.map((item) => (
+                          <label
+                            key={item.id}
+                            className={profile.equipment.includes(item.id) ? 'equipment-option on' : 'equipment-option'}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={profile.equipment.includes(item.id)}
+                              onChange={() => toggleEquipment(item.id)}
+                            />
+                            <span>{item.title}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </details>
+                  )
+                })}
             </div>
             <label className="field">
               Andet udstyr

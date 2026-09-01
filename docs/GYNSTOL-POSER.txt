@@ -1,0 +1,8 @@
+Gynstol-poser i Billedpose
+
+Pakken er flettet ind i den samlede app. Vælg Læge som erhverv, vælg en af
+gynstol-poserne under Billedpose og tryk derefter på Skab AI-partner.
+
+Klinik SFW kræver ikke NSFW-plan. De øvrige gynstol-poser følger appens
+eksisterende NSFW-adgang. Workerens billedprompt er opdateret, så den valgte
+pose sendes videre til billedmodellen.
