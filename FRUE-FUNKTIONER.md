@@ -7,8 +7,12 @@ plug-dagbog og nye Plus-prompts i den eksisterende Stay-app.
 
 - **Opsætning → Frue** indeholder arbejds-mode, udløsningslås, heldagsplan og
   plug-dagbog.
-- **Chat → Status** indeholder hurtig status for tænding, plug, precum, sted og
-  e-stim. Panelet er lukket som standard, så chatvinduet beholder pladsen.
+- **Chat → Status** indeholder hurtig status for tænding, fire plugstørrelser,
+  trusser, precum, sted og e-stim. Panelet er lukket som standard, så
+  chatvinduet beholder pladsen.
+- **Natte-lås** blokerer klimaks mellem kl. 22 og 08 og kræver morgenrapport.
+- Heldagsplanen indeholder nu morgen, formiddag, middag, eftermiddag, aften,
+  nat og søndag.
 - **Aktuel opgave → Ikke fuldført** afslutter opgaven og lader AI-partneren
   reagere uden at gætte på årsagen.
 
@@ -21,5 +25,5 @@ brugerens øvrige grænser har altid forrang.
 2. Erstat Cloudflare Worker-koden med `worker/stay-api-worker-manual.js` og
    deploy den.
 3. I Admin vælges **Gendan standard** og **Udgiv** for både scener og indhold,
-   så katalog version 7 og de nye Plus-prompts bliver centrale.
+   så katalog version 9, Master-scenerne og de nye Plus-prompts bliver centrale.
 4. Firebase-konfigurationen skal ikke ændres.

@@ -3,6 +3,7 @@ import type { FetishId, Profile } from '../types'
 import { getFirebaseDb } from './firebase'
 import { FETISH_META } from './persona'
 import { DEFAULT_CONTENT_CATALOG, type ContentCatalog } from './contentCatalog'
+import { MASTER_SCENES } from './masterScenes'
 
 export const AI_MODELS = [
   { id: 'venice-uncensored-role-play', title: 'Venice Role Play' },
@@ -173,7 +174,7 @@ const extraScenes: Omit<ScenePreset, 'order'>[] = (Object.keys(FETISH_META) as F
     requiredFetish: id,
   }))
 
-export const DEFAULT_SCENES: ScenePreset[] = [...baseScenes, ...extraScenes]
+export const DEFAULT_SCENES: ScenePreset[] = [...baseScenes, ...MASTER_SCENES, ...extraScenes]
   .map((scene, order) => ({ ...scene, order }))
 
 function filled(value: unknown, fallback: string): string {

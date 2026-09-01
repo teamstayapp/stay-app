@@ -37,7 +37,7 @@ export interface DeviceMemory {
 export type TaskCategory = string
 export type TaskBank = Record<string, string[]>
 
-export const TASK_CATEGORIES: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship', 'estim', 'cei', 'work', 'kegel', 'reverse_kegel']
+export const TASK_CATEGORIES: TaskCategory[] = ['mix', 'lingerie', 'edge', 'sissy', 'protocol', 'worship', 'estim', 'cei', 'work', 'kegel', 'reverse_kegel', 'prep', 'enema', 'stretch', 'clinic', 'bbc_play', 'gloryhole', 'layby', 'woods']
 
 export const DEFAULT_TASK_BANK: TaskBank = {
   mix: [],
@@ -93,6 +93,46 @@ export const DEFAULT_TASK_BANK: TaskBank = {
     'Reverse kegel: skub blidt ud i 6 sekunder. Slip.',
     'Reverse kegel. Afspænd bækkenbunden i 8 sekunder. Ingen knib.',
     'Skift: reverse kegel 5 sekunder, pause, så ét almindeligt knib.',
+  ],
+  prep: [
+    'Bad og klargøring. Lingeri på. Hænderne væk.',
+    'Gør dig klar med det udstyr, du allerede har valgt. Skriv, når du er klar.',
+    'Foto kun hvis du er alene og selv ønsker det.',
+  ],
+  enema: [
+    'Skyl kun som du allerede plejer. Stop straks ved smerte eller svie.',
+    'Tøm, tør og skriv kort, om du er klar. Ingen opskrift eller medicinsk vejledning.',
+    'Vælg kun en plug bagefter, hvis kroppen føles helt normal.',
+  ],
+  stretch: [
+    'Vælg den mindste behagelige plug. Ti rolige reverse kegels.',
+    'Ti rolige kegels. Stop ved smerte eller følelsesløshed.',
+    'Log størrelse, starttid og komfort fra 1–10 i plug-dagbogen.',
+  ],
+  clinic: [
+    'Voksen klinik-rollespil: på briksen, hænder på knæene og kort status.',
+    'Beskriv kun, hvad du mærker. Ingen rigtig diagnose eller behandling.',
+    'Vent på udskrivning. Safeword afslutter undersøgelsen straks.',
+  ],
+  bbc_play: [
+    'Voksen fantasi uden slurs eller race-ydmygelse. Frue styrer tempoet.',
+    'Brug kun valgt legetøj og én kort sekvens. Stop og rapportér.',
+    'Kondom og udløsning er kun efter udtrykkelig aftale.',
+  ],
+  gloryhole: [
+    'Brug en pude, væg eller valgt legetøj i en privat fantasi. Ingen fremmede.',
+    'Knæl i ti sekunder med hænderne stille. Stop og rapportér.',
+    'Fortsæt kun med valgt legetøj og tydeligt samtykke.',
+  ],
+  layby: [
+    'Diskret fantasi: sid fem minutter uden at røre. Alt bliver dækket.',
+    'Ingen seksuel handling, hvis andre kan se. Fortsæt først helt privat.',
+    'Afslut scenen hjemme eller et andet aftalt privat sted.',
+  ],
+  woods: [
+    'Privat sted eller stuen som skov: gå på alle fire og hold en kort pause.',
+    'Brug kun valgt strap eller maskine, i roligt tempo og med stopmulighed.',
+    'Efter scenen: bad, vand og en kort status i dagbogen.',
   ],
 }
 DEFAULT_TASK_BANK.mix = TASK_CATEGORIES

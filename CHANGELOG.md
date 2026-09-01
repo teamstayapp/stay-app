@@ -2,13 +2,27 @@
 
 Denne fil følger med hver GitHub-pakke. Nyeste ændringer står øverst.
 
+## 31. august 2026 — Frue, Master og udvidet ordbog
+
+- Fire komplette Master-scener er føjet til scenekataloget: arbejde, venner,
+  nat og CEI. De vises kun, når deres nødvendige tema er tilgængeligt.
+- Frue-status har nu fire plugstørrelser, trussestatus og en natte-lås.
+- Heldagsplanen dækker nu morgen, formiddag, middag, eftermiddag, aften, nat
+  og søndag; eksisterende valg migreres automatisk.
+- Otte nye Frue-temaer og opgavekategorier er tilføjet: Klargøring, Skyl,
+  Udvidelse, Klinik, Den store, Hullet, Rasteplads og Skov.
+- Ordbogen er udvidet med Master-, krops-, tøj-, status- og handlingsord samt
+  flere klare minusord. Kataloget er opgraderet til version 9.
+- Ældre appkopier og en syntaksfejl i ordbogspakken er ikke kopieret med ind;
+  funktionerne er flettet ind i den seneste samlede kode.
+
 ## 31. august 2026 — Frue-pakke og “Ikke fuldført”
 
 - Frue-status i chatten: tænding, plug, e-stim, precum og sted.
 - Udløsningslås med fri, nægtet, antal edges eller efter accepterede opgaver.
 - Lokal plug-dagbog med start, afslutning, note, “sov med” og sletning.
 - Arbejds-mode tvinger diskrete Web Push-beskeder og diskret AI-adfærd.
-- Valgfri heldagsplan med morgen, middag, eftermiddag og aften.
+- Valgfri heldagsplan med flere tidspunkter gennem dagen.
 - Plus-scenerne kan beskrive AI-partnerens egen lyst inden for valgte temaer og grænser.
 - Nyt Frue-udstyr samt nye plus- og minusord er føjet til indholdskatalog version 7.
 - Aktuelle opgaver har nu **Ikke fuldført**, og knapperne står 2 × 2 på små mobiler.

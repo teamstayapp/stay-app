@@ -2286,7 +2286,7 @@ export default function App() {
 
             <h3>Udløsningslås</h3>
             <div className="row">
-              {([['free', 'Tilladt'], ['denied', 'Ikke tilladt'], ['edges', 'Edge først'], ['after_tasks', 'Efter opgaver']] as const).map(([id, title]) => (
+              {([['free', 'Tilladt'], ['denied', 'Ikke tilladt'], ['edges', 'Edge først'], ['after_tasks', 'Efter opgaver'], ['night', 'Natte-lås']] as const).map(([id, title]) => (
                 <button
                   key={id}
                   type="button"
@@ -3682,11 +3682,19 @@ export default function App() {
             ))}
           </div>
           <div className="row">
+            {([['none', 'Ingen plug'], ['small', 'Lille plug'], ['purple', 'Lilla plug'], ['large', 'Stor plug']] as const).map(([id, title]) => (
+              <button
+                key={id}
+                type="button"
+                className={frue.status.plug === id ? 'chip on' : 'chip'}
+                onClick={() => setFrue((current) => ({ ...current, status: { ...current.status, plug: id } }))}
+              >{title}</button>
+            ))}
             <button
               type="button"
-              className={frue.status.plug ? 'chip on' : 'chip'}
-              onClick={() => setFrue((current) => ({ ...current, status: { ...current.status, plug: !current.status.plug } }))}
-            >{frue.status.plug ? 'Plug i' : 'Ingen plug'}</button>
+              className={frue.status.panties ? 'chip on' : 'chip'}
+              onClick={() => setFrue((current) => ({ ...current, status: { ...current.status, panties: !current.status.panties } }))}
+            >{frue.status.panties ? 'Trusser på' : 'Ingen trusser'}</button>
             {(['none', 'little', 'lots'] as const).map((id) => (
               <button
                 key={id}
